@@ -479,6 +479,7 @@ int32 thread_count;
 int32 thread_running;
 int32 slave_open_temp_tables;
 ulong thread_created;
+uint opt_concurrent_instances;
 ulong back_log, connect_timeout, concurrency, server_id;
 ulong what_to_log;
 ulong slow_launch_time;

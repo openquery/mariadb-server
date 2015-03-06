@@ -722,6 +722,12 @@ static Sys_var_enum Sys_concurrent_insert(
        GLOBAL_VAR(myisam_concurrent_insert), CMD_LINE(OPT_ARG),
        concurrent_insert_names, DEFAULT(1));
 
+static Sys_var_uint Sys_concurrent_instances(
+       "concurrent_instances",
+       "Number of mutexes protecting table definition cache hash",
+       READ_ONLY GLOBAL_VAR(opt_concurrent_instances), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 8192), DEFAULT(8), BLOCK_SIZE(1));
+
 static Sys_var_ulong Sys_connect_timeout(
        "connect_timeout",
        "The number of seconds the mysqld server is waiting for a connect "

@@ -119,6 +119,8 @@ The following options may be given as the first argument:
  --concurrent-insert[=name] 
  Use concurrent insert with MyISAM. Possible values are
  NEVER, AUTO, ALWAYS
+ --concurrent-instances=# 
+ Number of mutexes protecting table definition cache hash
  --console           Write error output on screen; don't remove the console
  window on windows.
  --core-file         Write core on errors.
@@ -1080,6 +1082,7 @@ chroot (No default value)
 collation-server latin1_swedish_ci
 completion-type NO_CHAIN
 concurrent-insert AUTO
+concurrent-instances 8
 console FALSE
 date-format %Y-%m-%d
 datetime-format %Y-%m-%d %H:%i:%s
