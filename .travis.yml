@@ -1,0 +1,24 @@
+# vim ft=yaml
+# travis-ci.org definition
+language: cpp
+compiler:
+  - gcc
+  - clang
+cache:
+  - ccache
+  - apt
+before_install:
+# https://mariadb.com/kb/en/mariadb/building-mariadb-release-on-ubuntu-1204-lts-precise-pangolin/
+  - sudo apt-get update -qq
+  - sudo apt-get -t precise-updates -y install gcc cmake binutils libjemalloc-dev
+install:
+  - echo | env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
+#  - cmake . -DBUILD_CONFIG=mysql_release -DWITH_SSL=yes && make
+#  - cmake -DCMAKE_BUILD_TYPE=Debug  . && make -j4
+script:
+  - cd mysql-test
+  - ./mtr
+notifications:
+  irc: "chat.freenode.net#maria"
+  on_success: never # [always|never|change]
+  on_failure: never
