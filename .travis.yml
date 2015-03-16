@@ -11,7 +11,7 @@ before_install:
 # https://mariadb.com/kb/en/mariadb/building-mariadb-release-on-ubuntu-1204-lts-precise-pangolin/
   - sudo apt-get update -qq
   - sudo apt-get -t precise-updates -y install libtool libncurses5-dev perl libwrap0-dev zlib1g-dev  libreadline-gplv2-dev libssl-dev libpam0g-dev psmisc po-debconf chrpath automake1.9 doxygen texlive-latex-base ghostscript dpatch gawk bison lsb-release hardening-wrapper libaio-dev devscripts
-  - apt-key adv --recv-key --keyserver keyserver.ubuntu.com 55BE302B 
+  - wget https://ftp-master.debian.org/keys/archive-key-7.0.asc -O - | apt-key add -
   - echo deb http://ftp.us.debian.org/debian/ wheezy main > /etc/apt/sources.list.d/wheezy.list
   - sudo apt-get update -qq
   - sudo apt-get -t wheezy -y install gcc cmake binutils libjemalloc-dev
