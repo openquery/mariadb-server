@@ -4472,7 +4472,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   rpl_group_info *serial_rgi;
   rpl_sql_thread_info sql_info(mi->rpl_filter);
   /* Buffer lifetime extends across the entire runtime of the THD handle. */
-  static char proc_info_buf[128]= {0};
+  static char proc_info_buf[256]= {0};
 
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
