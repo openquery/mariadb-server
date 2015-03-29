@@ -9856,6 +9856,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
      */
     rgi->set_row_stmt_start_timestamp();
 
+    ulong processed_rows= 1, estimated_rows= 0;
+
     THD_STAGE_INFO(thd, stage_executing);
     while (error == 0 && m_curr_row < m_rows_end)
     {
@@ -9871,6 +9873,14 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       DBUG_ASSERT(error != HA_ERR_RECORD_DELETED);
 
       table->in_use = old_thd;
+
+      /* Estimate upon the size (end) of the first row. */
+      if (estimated_rows == 0)
+        estimated_rows= (m_rows_end - m_curr_row) / (m_curr_row_end - m_curr_row);
+
+      if (m_curr_row < m_rows_end)
+        thd->print_proc_info("Handling record %lu of %lu for a %s event",
+                             processed_rows++, estimated_rows, get_type_str());
 
       if (error)
       {

@@ -1279,6 +1279,7 @@ public:
     BACKUPS_AVAIL = (1U << 0)     /* There are backups available */
   };
 
+
   /*
     Flags with information about the open tables state.
   */
@@ -1939,6 +1940,9 @@ public:
     allocated) strings, which memory won't go away over time.
   */
   const char *proc_info;
+
+  /* Abstract method to set a formatted info-string. */
+  virtual void print_proc_info(const char *fmt, ...);
 
 private:
   unsigned int m_current_stage_key;

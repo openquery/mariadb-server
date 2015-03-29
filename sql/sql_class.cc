@@ -1056,6 +1056,9 @@ THD::THD()
   set_current_thd(old_THR_THD);
 }
 
+void THD::print_proc_info(const char *, ...)
+{
+}
 
 void THD::push_internal_handler(Internal_error_handler *handler)
 {

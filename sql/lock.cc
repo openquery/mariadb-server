@@ -301,6 +301,7 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
   int rc= 1;
   ulong timeout= (flags & MYSQL_LOCK_IGNORE_TIMEOUT) ?
     LONG_TIMEOUT : thd->variables.lock_wait_timeout;
+  const char *prev_proc_info;
   PSI_stage_info org_stage;
   DBUG_ENTER("mysql_lock_tables(sql_lock)");
 
@@ -310,6 +311,7 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
                                              sql_lock->table_count))
     goto end;
 
+  prev_proc_info= thd->get_proc_info();
   THD_STAGE_INFO(thd, stage_table_lock);
 
   /* Copy the lock data array. thr_multi_lock() reorders its contents. */
@@ -325,6 +327,7 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
 
 end:
   THD_STAGE_INFO(thd, org_stage);
+  thd->proc_info= prev_proc_info;
 
   if (thd->killed)
   {

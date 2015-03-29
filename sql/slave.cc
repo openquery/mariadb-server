@@ -200,6 +200,59 @@ static void set_slave_max_allowed_packet(THD *thd, MYSQL *mysql)
   DBUG_VOID_RETURN;
 }
 
+/**
+  Thread state for the SQL slave thread.
+*/
+
+class THD_SQL_slave : public THD
+{
+private:
+  char *m_buffer;
+  size_t m_buffer_size;
+
+public:
+  /**
+    Constructor, used to represent slave thread state.
+
+    @param buffer Statically-allocated buffer.
+    @param size   Size of the passed buffer.
+  */
+  THD_SQL_slave(char *buffer, size_t size)
+  : m_buffer(buffer), m_buffer_size(size)
+  {
+    DBUG_ASSERT(buffer && size);
+    memset(m_buffer, 0, m_buffer_size);
+  }
+
+  virtual ~THD_SQL_slave()
+  {
+    m_buffer[0]= '\0';
+  }
+
+  void print_proc_info(const char *fmt, ...);
+};
+
+
+/**
+  Print an information (state) string for this slave thread.
+
+  @param fmt  Specifies how subsequent arguments are converted for output.
+  @param ...  Variable number of arguments.
+*/
+
+void THD_SQL_slave::print_proc_info(const char *fmt, ...)
+{
+  va_list args;
+
+  va_start(args, fmt);
+  my_vsnprintf(m_buffer, m_buffer_size - 1, fmt, args);
+  va_end(args);
+
+  /* Set field directly, profiling is not useful in a slave thread anyway. */
+  proc_info= m_buffer;
+}
+
+
 /*
   Find out which replications threads are running
 
@@ -2628,6 +2681,8 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
 
     protocol->prepare_for_resend();
 
+    thd->print_proc_info("Executing event at position %s", gtid_pos);
+
     /*
       slave_running can be accessed without run_lock but not other
       non-volotile members like mi->io_thd, which is guarded by the mutex.
@@ -4416,6 +4471,8 @@ pthread_handler_t handle_slave_sql(void *arg)
   const char *errmsg;
   rpl_group_info *serial_rgi;
   rpl_sql_thread_info sql_info(mi->rpl_filter);
+  /* Buffer lifetime extends across the entire runtime of the THD handle. */
+  static char proc_info_buf[128]= {0};
 
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
@@ -4425,7 +4482,8 @@ pthread_handler_t handle_slave_sql(void *arg)
   LINT_INIT(saved_log_pos);
 
   serial_rgi= new rpl_group_info(rli);
-  thd = new THD; // note that contructor of THD uses DBUG_ !
+  // note that contructor of THD uses DBUG_ !
+  thd = new THD_SQL_slave(proc_info_buf, sizeof(proc_info_buf));
   thd->thread_stack = (char*)&thd; // remember where our stack is
   thd->system_thread_info.rpl_sql_info= &sql_info;
 

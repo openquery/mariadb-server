@@ -4369,6 +4369,7 @@ bool open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
   MEM_ROOT new_frm_mem;
   bool some_routine_modifies_data= FALSE;
   bool has_prelocking_list;
+  const char *prev_proc_info= thd->proc_info;
   DBUG_ENTER("open_tables");
 
   /* Accessing data in XA_IDLE or XA_PREPARED is not allowed. */
@@ -4626,6 +4627,7 @@ restart:
 
 err:
   THD_STAGE_INFO(thd, stage_after_opening_tables);
+  thd->proc_info= prev_proc_info;
   free_root(&new_frm_mem, MYF(0));              // Free pre-alloced block
 
   if (error && *table_to_open)
