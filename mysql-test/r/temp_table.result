@@ -1,5 +1,9 @@
 drop table if exists t1,t2;
 drop view if exists v1;
+SELECT variable_value INTO @com_create_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_create_temp_table';
+SELECT variable_value INTO @com_drop_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_drop_temp_table';
 CREATE TABLE t1 (c int not null, d char (10) not null);
 insert into t1 values(1,""),(2,"a"),(3,"b");
 CREATE TEMPORARY TABLE t1 (a int not null, b char (10) not null);
@@ -26,6 +30,14 @@ create TEMPORARY TABLE t2 engine=heap select * from t1;
 create TEMPORARY TABLE IF NOT EXISTS t2 (a int) engine=heap;
 Warnings:
 Note	1050	Table 't2' already exists
+SELECT variable_value - @com_create_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_create_temp_table';
+variable_value - @com_create_temp_table
+3
+SELECT variable_value - @com_drop_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_drop_temp_table';
+variable_value - @com_drop_temp_table
+0
 CREATE TEMPORARY TABLE t1 (a int not null, b char (10) not null);
 ERROR 42S01: Table 't1' already exists
 ALTER TABLE t1 RENAME t2;
@@ -138,9 +150,33 @@ drop table t1, t2;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (i INT);
 LOCK TABLE t1 WRITE;
+SELECT variable_value INTO @com_create_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_create_temp_table';
+SELECT variable_value INTO @com_drop_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_drop_temp_table';
+SELECT variable_value INTO @com_create_table FROM information_schema.global_status
+WHERE variable_name = 'com_create_table';
+SELECT variable_value INTO @com_drop_table FROM information_schema.global_status
+WHERE variable_name = 'com_drop_table';
 CREATE TEMPORARY TABLE t1 (i INT);
 The following command should not block
 DROP TEMPORARY TABLE t1;
+SELECT variable_value - @com_create_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_create_temp_table';
+variable_value - @com_create_temp_table
+1
+SELECT variable_value - @com_drop_temp_table FROM information_schema.global_status
+WHERE variable_name = 'com_drop_temp_table';
+variable_value - @com_drop_temp_table
+1
+SELECT variable_value - @com_create_table FROM information_schema.global_status
+WHERE variable_name = 'com_create_table';
+variable_value - @com_create_table
+0
+SELECT variable_value - @com_drop_table FROM information_schema.global_status
+WHERE variable_name = 'com_drop_table';
+variable_value - @com_drop_table
+0
 DROP TABLE t1;
 CREATE TABLE t1 (i INT);
 CREATE TEMPORARY TABLE t2 (i INT);

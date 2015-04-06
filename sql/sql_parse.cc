@@ -2141,7 +2141,14 @@ mysql_execute_command(THD *thd)
   } /* endif unlikely slave */
 #endif
 
-  status_var_increment(thd->status_var.com_stat[lex->sql_command]);
+  if (lex->sql_command == SQLCOM_CREATE_TABLE &&
+      (lex->create_info.options & HA_LEX_CREATE_TMP_TABLE))
+    status_var_increment(thd->status_var.com_stat[SQLCOM_CREATE_TEMP_TABLE]);
+  else if (lex->sql_command == SQLCOM_DROP_TABLE && lex->drop_temporary)
+    status_var_increment(thd->status_var.com_stat[SQLCOM_DROP_TEMP_TABLE]);
+  else
+    status_var_increment(thd->status_var.com_stat[lex->sql_command]);
+
   thd->progress.report_to_client= test(sql_command_flags[lex->sql_command] &
                                        CF_REPORT_PROGRESS);
 
