@@ -1,33 +1,25 @@
 # vim ft=yaml
 # travis-ci.org definition
+
 language: cpp
-compiler:
-  - gcc
-  - clang
+compiler: gcc
+#  - clang
 cache:
-  - ccache
   - apt
 before_install:
-# https://mariadb.com/kb/en/mariadb/building-mariadb-release-on-ubuntu-1204-lts-precise-pangolin/
+  # As of this writing (10 May 2014) the Travis build environment is Ubuntu 12.04,
+  # which needs the following ugly dependency incantations to build RocksDB:
+  - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
   - sudo apt-get update -qq
-  - sudo apt-get -t precise-updates -y install libtool libncurses5-dev perl libwrap0-dev zlib1g-dev  libreadline-gplv2-dev libssl-dev libpam0g-dev psmisc po-debconf chrpath automake1.9 doxygen texlive-latex-base ghostscript dpatch gawk bison lsb-release hardening-wrapper libaio-dev devscripts
-#  - wget https://ftp-master.debian.org/keys/archive-key-7.0.asc -O - | sudo apt-key add -
-#  - echo deb http://ftp.us.debian.org/debian/ wheezy main | sudo tee -a /etc/apt/sources.list.d/wheezy.list
-  - echo -e 'deb http://archive.ubuntu.com/ubuntu trusty-updates main restricted universe multiverse\ndeb http://archive.ubuntu.com/ubuntu trusty main restricted universe multiverse' | sudo tee -a /etc/apt/sources.list.d/trusty.list
-  - sudo apt-get update -qq
-  - sudo apt-get -t trusty -y install gcc cmake binutils libjemalloc-dev
-#  - wget http://ftp.at.debian.org/debian/pool/main/j/jemalloc/libjemalloc-dev_3.0.0-3_amd64.deb  http://http.us.debian.org/debian/pool/main/j/jemalloc/libjemalloc1_3.0.0-3_amd64.deb
-#  - sudo dpkg -i libjemalloc1_3.0.0-3_amd64.deb libjemalloc-dev_3.0.0-3_amd64.deb
+  - sudo apt-get install -y -qq gcc-4.9 g++-4.9 zlib1g-dev libbz2-dev libsnappy-dev libjemalloc-dev libtool libncurses5-dev perl libwrap0-dev zlib1g-dev  libreadline-gplv2-dev libssl-dev libpam0g-dev psmisc po-debconf chrpath automake1.9 doxygen texlive-latex-base ghostscript dpatch gawk bison lsb-release hardening-wrapper libaio-dev devscripts
+  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 50
+  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 50
 # devscripts equivs
 #  - sudo mk-build-deps --install debian/control
-install:
-  - echo | env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
-#  - cmake . -DBUILD_CONFIG=mysql_release -DWITH_SSL=yes && make
-#  - cmake -DCMAKE_BUILD_TYPE=Debug  . && make -j4
-script:
-  - cd mysql-test
-  - ./mtr
+script: env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh && cd mysql-test && ./mtr
 notifications:
-  irc: "chat.freenode.net#maria"
-  on_success: never # [always|never|change]
-  on_failure: never
+  irc:
+    channels:
+      - "chat.freenode.net#maria"
+    on_success: never # [always|never|change]
+    on_failure: never
