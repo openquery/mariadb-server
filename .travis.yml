@@ -11,37 +11,37 @@ cache:
 addons:
   apt:
     sources:
-    - ubuntu-toolchain-r-test
-    - mariadb-10
+      - ubuntu-toolchain-r-test
+      - mariadb-10
     packages:
-    - gcc-4.9
-    - g++-4.9
-    - zlib1g-dev
-    - libbz2-dev
-    - libsnappy-dev
-    - libjemalloc-dev
-    - libtool
-    - libncurses5-dev
-    - perl
-    - libwrap0-dev
-    - zlib1g-dev
-    - libreadline-gplv2-dev
-    - libssl-dev
-    - libpam0g-dev
-    - psmisc
-    - po-debconf
-    - chrpath
-    - automake1.9
-    - doxygen
-    - texlive-latex-base
-    - ghostscript
-    - dpatch
-    - gawk
-    - bison
-    - lsb-release
-    - hardening-wrapper
-    - libaio-dev
-    - devscripts
+      - gcc-4.9
+      - g++-4.9
+      - zlib1g-dev
+      - libbz2-dev
+      - libsnappy-dev
+      - libjemalloc-dev
+      - libtool
+      - libncurses5-dev
+      - perl
+      - libwrap0-dev
+      - zlib1g-dev
+      - libreadline-gplv2-dev
+      - libssl-dev
+      - libpam0g-dev
+      - psmisc
+      - po-debconf
+      - chrpath
+      - automake1.9
+      - doxygen
+      - texlive-latex-base
+      - ghostscript
+      - dpatch
+      - gawk
+      - bison
+      - lsb-release
+      - hardening-wrapper
+      - libaio-dev
+      - devscripts
 # devscripts equivs
 #  - sudo mk-build-deps --install debian/control
 script: DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh && cd mysql-test && ./mtr
