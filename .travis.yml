@@ -62,8 +62,9 @@ before_install:
 #  - sudo mk-build-deps --install debian/control
 script:
  - export AM_EXTRA_MAKEFLAGS=VERBOSE=1
- - export MYSQL_BUILD_CC=clang
- - export MYSQL_BUILD_CXX=clang++
+ - export PATH=/usr/local/clang-3.6/bin/:${PATH}
+ - export MYSQL_BUILD_CC=`which ${CC}`
+ - export MYSQL_BUILD_CXX=`which ${CXX}`
  - which clang
  - which clang++
  - DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh && cd mysql-test && ./mtr
