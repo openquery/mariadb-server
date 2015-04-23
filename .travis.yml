@@ -57,13 +57,22 @@ before_install:
  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 50
 # still whitelist applies in VM mode
  - sudo apt-get install -y -qq  hardening-wrapper libreadline-gplv2-dev automake1.9 dpatch libaio-dev
-# devscripts equivs
-#  - sudo mk-build-deps --install debian/control
 script:
+  - mkdir debug_build; cd debug_build
+  - cmake .. \
+                -DCMAKE_C_COMPILER=${CC} \
+                -DCMAKE_CXX_COMPILER=${CXX}  \
+                -DBUILD_CONFIG=Debug \
+                -DSYSTEM_TYPE="debian-linux-gnu" \
+                -DDEB=ubuntu'
+ - make -j 4
+ - cd mysql-test && MTR_BINDIR=/home/travis/build/openquery/mariadb-server/debug_build ./mysql-test-run.pl
  - export MYSQL_BUILD_CC=${CC}
  - export MYSQL_BUILD_CXX=${CXX}
  - DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
- - cd mysql-test && MTR_BINDIR=/home/travis/build/openquery/mariadb-server/builddir ./mysql-test-run.pl
+ - cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6
+ - make -j 4 package
+# TODO http://docs.travis-ci.com/user/deployment/custom/ - private upload
 notifications:
   irc:
     channels:
