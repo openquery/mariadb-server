@@ -67,7 +67,7 @@ script:
  - export MYSQL_BUILD_CXX=`which ${CXX}`
  - which clang
  - which clang++
- - DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh && cd mysql-test && ./mtr
+ - DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh && ( cd mysql-test && ./mtr )
 notifications:
   irc:
     channels:
