@@ -69,8 +69,8 @@ script:
                 -DBUILD_CONFIG=Debug \
                 -DSYSTEM_TYPE="debian-linux-gnu"
  - make -j 4
- - cd ../mysql-test && MTR_BINDIR=/home/travis/build/openquery/mariadb-server/debug_build ./mysql-test-run.pl
- - cd ..
+ - cd ../mysql-test && MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build ./mysql-test-run.pl
+ - cd "${TRAVIS_BUILD_DIR}"
  - export MYSQL_BUILD_CC=${CC}
  - export MYSQL_BUILD_CXX=${CXX}
  - DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
