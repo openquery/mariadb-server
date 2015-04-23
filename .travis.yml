@@ -42,6 +42,7 @@ addons:
       - lsb-release
       - libaio-dev
       - devscripts
+      - libevent-dev
 before_install:
 # - sudo add-apt-repository -y "deb https://downloads.mariadb.com/files/MariaDB/repo/10.0/ubuntu precise main"
  - sudo add-apt-repository -y 'deb http://ftp.osuosl.org/pub/mariadb/repo/10.0/ubuntu precise main'
