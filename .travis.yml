@@ -60,8 +60,8 @@ before_install:
 #  - sudo mk-build-deps --install debian/control
 script:
  - export AM_EXTRA_MAKEFLAGS=VERBOSE=1
- - export MYSQL_BUILD_CC=`which ${CC}`
- - export MYSQL_BUILD_CXX=`which ${CXX}`
+ - export MYSQL_BUILD_CC=${CC}
+ - export MYSQL_BUILD_CXX=${CXX}
  - DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh && cd mysql-test && chmod a+x mtr.out-of-source && ./mtr.out-of-source
 notifications:
   irc:
