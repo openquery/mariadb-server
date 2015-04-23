@@ -56,6 +56,7 @@ before_install:
 # devscripts equivs
 #  - sudo mk-build-deps --install debian/control
 script:
+ -  gcc --version
  - export AM_EXTRA_MAKEFLAGS=VERBOSE=1
  - DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
  - cd mysql-test && ./mtr
