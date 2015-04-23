@@ -13,7 +13,7 @@ set -e
 # Don't run the mysql-test-run test suite as part of build.
 # It takes a lot of time, and we will do a better test anyway in
 # Buildbot, running the test suite from installed .debs on a clean VM.
-#export DEB_BUILD_OPTIONS="nocheck"
+export DEB_BUILD_OPTIONS="nocheck"
 
 #export MARIADB_OPTIONAL_DEBS="tokudb-engine"
 
