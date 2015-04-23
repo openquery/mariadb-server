@@ -69,7 +69,7 @@ endif
 			CFLAGS=$${MYSQL_BUILD_CFLAGS:-"-O2 -fno-omit-frame-pointer -g -pipe -Wall -Wno-uninitialized"} \
 			CXX=$${MYSQL_BUILD_CXX:-g++} \
 			CXXFLAGS=$${MYSQL_BUILD_CXXFLAGS:-"-O2 -fno-omit-frame-pointer -g -pipe -Wall -Wno-uninitialized"} \
-		cmake .. \
+		cmake .. --debug-output \
 		-DMYSQL_SERVER_SUFFIX="-$(DEBVERSION)" \
 		-DBUILD_CONFIG=mysql_release \
 		-DCOMPILATION_COMMENT="mariadb.org binary distribution" \
