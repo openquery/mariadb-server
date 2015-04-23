@@ -62,7 +62,7 @@ script:
  - export AM_EXTRA_MAKEFLAGS=VERBOSE=1
  - export MYSQL_BUILD_CC=`which ${CC}`
  - export MYSQL_BUILD_CXX=`which ${CXX}`
- - DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh && ( pwd; ls -la mysql-test; cd mysql-test && ./mtr )
+ - DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh && cd mysql-test && chmod a+x mtr.out-of-source && ./mtr.out-of-source
 notifications:
   irc:
     channels:
