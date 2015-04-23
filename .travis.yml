@@ -16,6 +16,7 @@ addons:
     packages:
       - gcc-4.9
       - g++-4.9
+      - binutils
 #      - libjemalloc-dev
       - hardening-wrapper
       - zlib1g-dev
