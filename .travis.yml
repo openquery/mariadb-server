@@ -63,10 +63,10 @@ script:
                 -DCMAKE_C_COMPILER=${CC} \
                 -DCMAKE_CXX_COMPILER=${CXX}  \
                 -DBUILD_CONFIG=Debug \
-                -DSYSTEM_TYPE="debian-linux-gnu" \
-                -DDEB=ubuntu'
+                -DSYSTEM_TYPE="debian-linux-gnu"
  - make -j 4
- - cd mysql-test && MTR_BINDIR=/home/travis/build/openquery/mariadb-server/debug_build ./mysql-test-run.pl
+ - cd ../mysql-test && MTR_BINDIR=/home/travis/build/openquery/mariadb-server/debug_build ./mysql-test-run.pl
+ - cd ..
  - export MYSQL_BUILD_CC=${CC}
  - export MYSQL_BUILD_CXX=${CXX}
  - DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
