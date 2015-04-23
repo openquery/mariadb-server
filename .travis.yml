@@ -4,7 +4,8 @@
 sudo: required
 
 language: cpp
-compiler: gcc
+compiler:
+#  - gcc
   - clang
 cache:
   - apt
@@ -12,8 +13,10 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
+      - llvm-toolchain-precise-3.6
       - mariadb-10
     packages:
+      - llvm-toolchain-3.6
       - gcc-4.9
       - g++-4.9
       - binutils
@@ -58,9 +61,9 @@ before_install:
 # devscripts equivs
 #  - sudo mk-build-deps --install debian/control
 script:
- - gcc --version
- - ld --version
  - export AM_EXTRA_MAKEFLAGS=VERBOSE=1
+ - export MYSQL_BUILD_CC=clang
+ - export MYSQL_BUILD_CXX=clang++
  - DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh && cd mysql-test && ./mtr
 notifications:
   irc:
