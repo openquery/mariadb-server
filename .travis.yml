@@ -65,7 +65,7 @@ before_install:
   - sudo apt-get install -y -qq binutils
 script:
   - mkdir debug_build; cd debug_build
-  - cmake ..   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DBUILD_CONFIG=Debug -DSYSTEM_TYPE="debian-linux-gnu"
+  - cmake ..   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=Debug -DSYSTEM_TYPE="debian-linux-gnu"
   - make -j 4
   - cd ../mysql-test && MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build ./mysql-test-run.pl
   - cd "${TRAVIS_BUILD_DIR}"
