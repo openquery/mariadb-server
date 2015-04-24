@@ -73,7 +73,7 @@ script:
   - cd "${TRAVIS_BUILD_DIR}"
   - export MYSQL_BUILD_CC=${CC}
   - export MYSQL_BUILD_CXX=${CXX}
-  - DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
+  - echo | env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
   - cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6
   - make -j 4 package
 # touch - force build#2
