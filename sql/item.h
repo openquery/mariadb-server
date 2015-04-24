@@ -3275,6 +3275,16 @@ class Item_args
 protected:
   Item **args, *tmp_arg[2];
   void set_arguments(List<Item> &list);
+  bool walk_args(Item_processor processor, bool walk_subquery, uchar *arg)
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->walk(processor, walk_subquery, arg))
+        return true;
+    }
+    return false;
+  }
+  bool transform_args(Item_transformer transformer, uchar *arg);
 public:
   uint arg_count;
   Item_args(void)
@@ -3328,6 +3338,72 @@ public:
 };
 
 
+class Used_tables_and_const_cache
+{
+public:
+  /*
+    In some cases used_tables_cache is not what used_tables() return
+    so the method should be used where one need used tables bit map
+    (even internally in Item_func_* code).
+  */
+  table_map used_tables_cache;
+  bool const_item_cache;
+
+  Used_tables_and_const_cache()
+   :used_tables_cache(0),
+    const_item_cache(true)
+  { }
+  Used_tables_and_const_cache(const Used_tables_and_const_cache *other)
+   :used_tables_cache(other->used_tables_cache),
+    const_item_cache(other->const_item_cache)
+  { }
+  void used_tables_and_const_cache_init()
+  {
+    used_tables_cache= 0;
+    const_item_cache= true;
+  }
+  void used_tables_and_const_cache_copy(const Used_tables_and_const_cache *c)
+  {
+    *this= *c;
+  }
+  void used_tables_and_const_cache_join(const Item *item)
+  {
+    used_tables_cache|= item->used_tables();
+    const_item_cache&= item->const_item();
+  }
+  /*
+    Call update_used_tables() for all "argc" items in the array "argv"
+    and join with the current cache.
+    "this" must be initialized with a constructor or
+    re-initialized with used_tables_and_const_cache_init().
+  */
+  void used_tables_and_const_cache_update_and_join(uint argc, Item **argv)
+  {
+    for (uint i=0 ; i < argc ; i++)
+    {
+      argv[i]->update_used_tables();
+      used_tables_and_const_cache_join(argv[i]);
+    }
+  }
+  /*
+    Call update_used_tables() for all items in the list
+    and join with the current cache.
+    "this" must be initialized with a constructor or
+    re-initialized with used_tables_and_const_cache_init().
+  */
+  void used_tables_and_const_cache_update_and_join(List<Item> &list)
+  {
+    List_iterator_fast<Item> li(list);
+    Item *item;
+    while ((item=li++))
+    {
+      item->update_used_tables();
+      used_tables_and_const_cache_join(item);
+    }
+  }
+};
+
+
 /**
   An abstract class representing common features of
   regular functions and aggregate functions.
@@ -3351,6 +3427,12 @@ public:
     :Item_result_field(thd, item), Item_args(thd, item) { }
   Item_func_or_sum(List<Item> &list)
     :Item_result_field(), Item_args(list) { }
+  bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
+  {
+    if (walk_args(processor, walk_subquery, arg))
+      return true;
+    return (this->*processor)(arg);
+  }
   /*
     This method is used for debug purposes to print the name of an
     item to the debug log. The second use of this method is as
