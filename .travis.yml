@@ -70,13 +70,13 @@ script:
   - make -j 4
 # Time limits on tests - 50mins - may not be possible
 #  - [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]] && BIGTEST=--big-test
-  - cd ../mysql-test && MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build ./mysql-test-run.pl ${BIGTEST} --report-times --parallel=4 --mem
-  - cd "${TRAVIS_BUILD_DIR}"
-  - export MYSQL_BUILD_CC=${CC}
-  - export MYSQL_BUILD_CXX=${CXX}
-  - echo | env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
-  - cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6
-  - make -j 4 package
+  - cd ../mysql-test && MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build ./mysql-test-run.pl ${BIGTEST} --report-times --parallel=4 --mem --verbose sphinx
+#  - cd "${TRAVIS_BUILD_DIR}"
+#  - export MYSQL_BUILD_CC=${CC}
+#  - export MYSQL_BUILD_CXX=${CXX}
+#  - echo | env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
+#  - cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6
+#  - make -j 4 package
 # touch - force build#2
 # TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of packages(?)
 notifications:
