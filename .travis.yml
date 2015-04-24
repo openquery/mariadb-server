@@ -47,6 +47,7 @@ addons:
       - libevent-dev
       - sphinxsearch
       - rpm
+      - libboost-all-dev
 before_install:
 # - sudo add-apt-repository -y "deb https://downloads.mariadb.com/files/MariaDB/repo/10.0/ubuntu precise main"
   - sudo add-apt-repository -y 'deb http://ftp.osuosl.org/pub/mariadb/repo/10.0/ubuntu precise main'
@@ -66,7 +67,11 @@ before_install:
   - sudo apt-get install -y -qq binutils
 script:
   - mkdir debug_build; cd debug_build
-  - cmake ..   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=Debug -DSYSTEM_TYPE="debian-linux-gnu"
+  - cmake ..   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=Debug -DSYSTEM_TYPE="debian-linux-gnu" \
+               -DWITH_SSL=system -DWITH_ZLIB=system \
+               -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON \
+               -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON \
+               -DWITH_PARTITION_STORAGE_ENGINE=ON
   - make -j 4
 # Time limits on tests - 50mins - may not be possible
 #  - [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]] && BIGTEST=--big-test
