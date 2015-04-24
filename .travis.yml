@@ -67,7 +67,8 @@ script:
   - mkdir debug_build; cd debug_build
   - cmake ..   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=Debug -DSYSTEM_TYPE="debian-linux-gnu"
   - make -j 4
-  - cd ../mysql-test && MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build ./mysql-test-run.pl
+  - [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]] && BIGTEST=--big-test
+  - cd ../mysql-test && MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build ./mysql-test-run.pl "${BIGTEST}"
   - cd "${TRAVIS_BUILD_DIR}"
   - export MYSQL_BUILD_CC=${CC}
   - export MYSQL_BUILD_CXX=${CXX}
