@@ -71,6 +71,8 @@ script:
 # Time limits on tests - 50mins - may not be possible
 #  - [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]] && BIGTEST=--big-test
   - cd ../mysql-test && MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build ./mysql-test-run.pl ${BIGTEST} --report-times --parallel=4 --mem --verbose sphinx
+  - cat var/1/searchd/sphinx.log
+  - cat var/1/mysqld.1
 #  - cd "${TRAVIS_BUILD_DIR}"
 #  - export MYSQL_BUILD_CC=${CC}
 #  - export MYSQL_BUILD_CXX=${CXX}
