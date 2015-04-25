@@ -74,7 +74,7 @@ FOREACH(file ${ABI_HEADERS})
   ENDIF()
   FILE(REMOVE ${tmpfile})
   EXECUTE_PROCESS(
-    COMMAND diff -I '^#include' -w ${file}.pp ${abi_check_out} RESULT_VARIABLE result)
+    COMMAND diff -I "^#include" -w ${file}.pp ${abi_check_out} RESULT_VARIABLE result)
   IF(NOT ${result} EQUAL 0)
     IF(ABI_UPDATE)
       EXECUTE_PROCESS(COMMAND mv -v ${abi_check_out} ${file}.pp)
