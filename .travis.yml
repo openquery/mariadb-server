@@ -85,7 +85,6 @@ script:
 # TMP disable  - cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6
 # TMP disable  - make -j 4 package
 # TMP disable  - find . -name rpmbuild-client.err -exec cat {} \; || true
-# touch - force build#2
 # TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of packages(?)
 notifications:
   irc:
