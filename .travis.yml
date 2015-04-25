@@ -77,8 +77,7 @@ script:
   - make -j 4
 # Time limits on tests - 50mins - may not be possible
 #  - [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]] && BIGTEST=--big-test
-  - cd ../mysql-test && MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build ./mysql-test-run.pl ${BIGTEST} --report-times --parallel=4 --mem --force || echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_JOB_ID}" > var/README.txt && ABORTFILE=${TRAVIS_JOB_ID}-${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT_RANGE}-${TRAVIS_REPO_SLUG/\//-}.tar.bz2 && tar -jcf "${ABORTFILE}" var && curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/ || false
-# TODO: add to error upload: [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]
+  - cd ../mysql-test && MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build ./mysql-test-run.pl ${BIGTEST} --report-times --parallel=4 --mem --force
   - cd "${TRAVIS_BUILD_DIR}"
   - export MYSQL_BUILD_CC=${CC}
   - export MYSQL_BUILD_CXX=${CXX}
@@ -86,7 +85,15 @@ script:
 # TMP disable  - cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6
 # TMP disable  - make -j 4 package
 # TMP disable  - find . -name rpmbuild-client.err -exec cat {} \; || true
-# touch - force build#2
+
+after_failure:
+  - cd "${TRAVIS_BUILD_DIR}"/debug_build
+  - echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_JOB_ID}" > var/README.txt
+  - ABORTFILE=${TRAVIS_JOB_ID}-${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT_RANGE}-${TRAVIS_REPO_SLUG/\//-}.tar.bz2
+  - tar -jcf "${ABORTFILE}"
+#  - curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/
+# TODO: add to error upload: [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]
+
 # TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of packages(?)
 notifications:
   irc:
