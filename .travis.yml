@@ -48,7 +48,7 @@ addons:
       - sphinxsearch
       - rpm
       - libboost-all-dev
-      - libjudy-dev
+# TMP disable      - libjudy-dev
 before_install:
 # - sudo add-apt-repository -y "deb https://downloads.mariadb.com/files/MariaDB/repo/10.0/ubuntu precise main"
   - sudo add-apt-repository -y 'deb http://ftp.osuosl.org/pub/mariadb/repo/10.0/ubuntu precise main'
@@ -59,7 +59,8 @@ before_install:
   - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 50
   - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 50
 # still whitelist applies in VM mode
-  - sudo apt-get install -y -qq  hardening-wrapper libreadline-gplv2-dev automake1.9 dpatch libaio-dev libjudy-dev
+  - sudo apt-get install -y -qq  hardening-wrapper libreadline-gplv2-dev automake1.9 dpatch libaio-dev
+# TMP disable  - sudo apt-get install -y -qq libjudy-dev
 # try to pull binutil-2.23+ from trusty
   - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty main'
   - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty-security main'
@@ -81,9 +82,9 @@ script:
   - export MYSQL_BUILD_CC=${CC}
   - export MYSQL_BUILD_CXX=${CXX}
 # TMP disable  - echo | env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
-  - cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6
-  - make -j 4 package
-  - find . -name rpmbuild-client.err -exec cat {} \; || true
+# TMP disable  - cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6
+# TMP disable  - make -j 4 package
+# TMP disable  - find . -name rpmbuild-client.err -exec cat {} \; || true
 # touch - force build#2
 # TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of packages(?)
 notifications:
