@@ -1,0 +1,93 @@
+# vim ft=yaml
+# travis-ci.org definition
+
+sudo: required
+
+language: cpp
+compiler:
+  - gcc
+  - clang
+cache:
+  - apt
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+      - mariadb-10
+    packages:
+      - gcc-4.9
+      - g++-4.9
+#      - binutils
+#      - libjemalloc-dev
+      - hardening-wrapper
+      - zlib1g-dev
+      - libbz2-dev
+      - libsnappy-dev
+      - libtool
+      - libncurses5-dev
+      - perl
+      - libwrap0-dev
+      - zlib1g-dev
+      - libreadline-gplv2-dev
+      - libssl-dev
+      - libpam0g-dev
+      - psmisc
+      - po-debconf
+      - chrpath
+      - automake1.9
+      - doxygen
+      - texlive-latex-base
+      - ghostscript
+      - dpatch
+      - gawk
+      - bison
+      - lsb-release
+      - libaio-dev
+      - devscripts
+      - libevent-dev
+      - sphinxsearch
+      - rpm
+      - libboost-all-dev
+before_install:
+# - sudo add-apt-repository -y "deb https://downloads.mariadb.com/files/MariaDB/repo/10.0/ubuntu precise main"
+  - sudo add-apt-repository -y 'deb http://ftp.osuosl.org/pub/mariadb/repo/10.0/ubuntu precise main'
+  - sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0x1BB943DB
+  - sudo apt-get update -qq
+  - sudo apt-get install -y -qq  libjemalloc-dev
+# need to do before installing hardening-wrapper
+  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 50
+  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 50
+# still whitelist applies in VM mode
+  - sudo apt-get install -y -qq  hardening-wrapper libreadline-gplv2-dev automake1.9 dpatch libaio-dev
+# try to pull binutil-2.23+ from trusty
+  - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty main'
+  - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty-security main'
+  - sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0x3B4FE6ACC0B21F32
+  - sudo apt-get update -qq
+  - sudo apt-get install -y -qq binutils
+script:
+  - mkdir debug_build; cd debug_build
+  - cmake ..   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=Debug -DSYSTEM_TYPE="debian-linux-gnu"
+               -DWITH_SSL=system -DWITH_ZLIB=system
+               -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
+               -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
+               -DWITH_PARTITION_STORAGE_ENGINE=ON
+  - make -j 4
+# Time limits on tests - 50mins - may not be possible
+#  - [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]] && BIGTEST=--big-test
+  - cd ../mysql-test && MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build ./mysql-test-run.pl ${BIGTEST} --report-times --parallel=4 --mem --force
+  - cd "${TRAVIS_BUILD_DIR}"
+  - export MYSQL_BUILD_CC=${CC}
+  - export MYSQL_BUILD_CXX=${CXX}
+  - echo | env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
+  - cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6
+  - make -j 4 package
+  - find . -name rpmbuild-client.err -exec cat {} \; || true
+# touch - force build#2
+# TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of packages(?)
+notifications:
+  irc:
+    channels:
+      - "chat.freenode.net#maria"
+    on_success: never # [always|never|change]
+    on_failure: never
