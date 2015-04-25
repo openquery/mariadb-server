@@ -49,13 +49,6 @@ extern struct thd_wait_service_st {
 } *thd_wait_service;
 void thd_wait_begin(void* thd, int wait_type);
 void thd_wait_end(void* thd);
-struct scheduler_functions;
-extern struct my_thread_scheduler_service {
-  int (*set)(struct scheduler_functions *scheduler);
-  int (*reset)();
-} *my_thread_scheduler_service;
-int my_thread_scheduler_set(struct scheduler_functions *scheduler);
-int my_thread_scheduler_reset();
 extern struct progress_report_service_st {
   void (*thd_progress_init_func)(void* thd, unsigned int max_stage);
   void (*thd_progress_report_func)(void* thd,
