@@ -73,7 +73,8 @@ script:
                -DWITH_SSL=system -DWITH_ZLIB=system
                -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
                -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
-               -DWITH_PARTITION_STORAGE_ENGINE=ON
+               -DWITH_PARTITION_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
+# -DWITHOUT_MROONGA_STORAGE_ENGINE there because too many clang warnings
   - make -j 4
 # Time limits on tests - 50mins - may not be possible
 #  - [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]] && BIGTEST=--big-test
