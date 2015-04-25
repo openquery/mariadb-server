@@ -88,10 +88,10 @@ script:
 
 after_failure:
   - cd "${TRAVIS_BUILD_DIR}"/debug_build
-  - echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_JOB_ID}" > var/README.txt
+  - sh -c 'echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/builds/${TRAVIS_JOB_ID}" > var/README.txt'
   - ABORTFILE=${TRAVIS_JOB_ID}-${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT_RANGE}-${TRAVIS_REPO_SLUG/\//-}.tar.bz2
-  - tar -jcf "${ABORTFILE}"
-#  - curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/
+  - tar -jcf "${ABORTFILE}" var
+  - curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/
 # TODO: add to error upload: [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]
 
 # TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of packages(?)
