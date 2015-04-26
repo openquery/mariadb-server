@@ -45,7 +45,7 @@ cache:
 # | rpl-                       |      38    | 38
 #
 env:
-  - BUILD_TYPE=Debug
+#  - BUILD_TYPE=Debug
 #  - BUILD_TYPE=RelWithDebInfo
   matrix:
     - TEST=main-,archive-,binlog-
