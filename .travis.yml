@@ -6,38 +6,54 @@ sudo: required
 language: cpp
 compiler:
   - gcc
-  - clang
+#  - clang
 cache:
   - apt
   - ccache
-#env:
-#  - BUILD_TYPE=Debug
-#  - BUILD_TYPE=RelWithDebInfo
+
+#  Timing on build an test needs to be < 50 minutes. The compile is ~6-7minutes
+#  https://travis-ci.org/openquery/mariadb-server/builds/60083380
+# |  Test                      | time (min) |
+# | main-                      |      25    |
+# | archive-                   |       9    |
+# | binlog-                    |       6    | 40
+#
+# | csv-                       |       5    |
+# | federated-                 |       2    |
+# | funcs_1-                   |       5    |
+# | funcs_2-                   |       3    |
+# | handler-                   |       3    |
+# | heap-                      |       5    |
+# | maria-                     |      14    |
+# | multi_source-              |       3    | 40
+
+# | innodb-                    |      23    |
+# | innodb_fts-                |       3    |
+# | innodb_zip-                |       4    | 30
+
+# | optimizer_unfixed_bugs-    |       2    |
+# | parts-                     |      18    |
+# | sys_vars-                  |       5    |
+# | unit-                      |      10    |
+# | vcol-                      |       4    | 39
+#
+# | percona-                   |       4    |
+# | perfschema-                |       5    |
+# | plugins-                   |      
+# | roles-                     |       4    |
+#
+# | rpl-                       |      38    | 38
+#
 env:
-  - TEST=main-
-  - TEST=archive-
-  - TEST=binlog-
-  - TEST=csv-
-  - TEST=federated-
-  - TEST=funcs_1-
-  - TEST=funcs_2-
-  - TEST=handler-
-  - TEST=heap-
-  - TEST=innodb-
-  - TEST=innodb_fts-
-  - TEST=innodb_zip-
-  - TEST=maria-
-  - TEST=multi_source-
-  - TEST=optimizer_unfixed_bugs-
-  - TEST=parts-
-  - TEST=percona-
-  - TEST=perfschema-
-  - TEST=plugins-
-  - TEST=roles-
+  - BUILD_TYPE=Debug
+#  - BUILD_TYPE=RelWithDebInfo
+  - TEST=main-,archive-,binlog-
+  - TEST=csv-,federated-,funcs_1-,funcs_2-,handler-,heap-,maria-,multi_source-
+  - TEST=innodb-,innodb_fts-,innodb_zip-
+  - TEST=optimizer_unfixed_bugs-,parts-,sys_vars-,unit-,vcol-
+  - TEST=percona-,perfschema-,plugins-,roles-
   - TEST=rpl-
-  - TEST=sys_vars-
-  - TEST=unit-
-  - TEST=vcol-
+
   # TODO - watch yaml syntax here.
   #global:
     # COVERITY_SCAN_TOKEN
@@ -158,11 +174,12 @@ after_failure:
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
   - sh -c 'echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/jobs/${TRAVIS_JOB_ID}" > var/README.txt'
   - ABORTFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}.tar.bz2
-  - echo -e '\n\nTest failed - please report bug https://mariadb.atlassian.net/secure/RapidBoard.jspa?rapidView=24&projectKey=MDEV\nAnd reference file ${ABORTFILE} in private uploads\n'
+  - echo -e "\n\nTest failed - please report bug https://mariadb.atlassian.net/secure/RapidBoard.jspa?rapidView=24&projectKey=MDEV\nAnd reference file ${ABORTFILE} in private uploads\n\n"
   - tar --dereference -jcf "${ABORTFILE}" var ../sql/mysqld
 # TMP disable  - curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/
   - fi
 # TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of failure builds to help requester debug request
+#   - curl -v --user travisci:${ENCRYPTED_PASS}@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/travisfails/
 # after_success:
 # TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of packages(?)
 
@@ -172,3 +189,5 @@ notifications:
       - "chat.freenode.net#maria"
     on_success: never # [always|never|change]
     on_failure: never
+    template:
+      - "%{repository}/%{branch} (%{commit} - %{author}): %{build_url}: %{message}"
