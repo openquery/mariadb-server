@@ -82,7 +82,7 @@ script:
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
   - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
 # No tmpfs - symlink depth https://travis-ci.org/openquery/mariadb-server/jobs/60070480 (--mem --clean-vardir )
-  - export MTROPTS="--report-times --parallel=10 --force --fast --timer --retry-failure=2 --suite-timeout=39 ${BIGTEST}"
+  - export MTROPTS="--report-times --parallel=4 --force --fast --timer --retry-failure=2 --suite-timeout=39 ${BIGTEST}"
   - ./mysql-test-run.pl ${MTROPTS} --suite=main-
   - ./mysql-test-run.pl ${MTROPTS} --suite=archive-
   - ./mysql-test-run.pl ${MTROPTS} --suite=binlog-
