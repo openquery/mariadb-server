@@ -170,12 +170,12 @@ after_failure:
     fi
   - if [[ "${TRAVIS_PULL_REQUEST}" = "false" && "${TRAVIS_REPO_SLUG}" = "MariaDB/server" ]] && [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]; then
       cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
-      echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/jobs/${TRAVIS_JOB_ID}" > var/README.txt
       ABORTFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}.tar.bz2
       echo -e "\n\nTest failed - please report bug https://mariadb.atlassian.net/secure/RapidBoard.jspa?rapidView=24&projectKey=MDEV\nAnd reference file ${ABORTFILE} in private uploads\n\n"
       tar --dereference -jcf "${ABORTFILE}" var ../sql/mysqld
-# TMP disable  - curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/
     fi
+#     echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/jobs/${TRAVIS_JOB_ID}" > var/README.txt
+# TMP disable  - curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/
 # TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of failure builds to help requester debug request
 #   - curl -v --user travisci:${ENCRYPTED_PASS}@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/travisfails/
 # after_success:
