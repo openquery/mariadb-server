@@ -80,7 +80,32 @@ script:
 #  - [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]] && BIGTEST=--big-test
   - ulimit -c unlimited
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
-  - MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build ./mysql-test-run.pl ${BIGTEST} --report-times --parallel=4 --mem --force --fast --timer --retry-failure=2 --suite-timeout=39 --reorder
+  - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
+  - export MTROPTS=--report-times --parallel=4 --mem --force --fast --timer --retry-failure=2 --suite-timeout=39 ${BIGTEST}
+  - ./mysql-test-run.pl ${MTROPTS} --suite=main-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=archive-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=binlog-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=csv-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=federated-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=funcs_1-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=funcs_2-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=handler-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=heap-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=innodb-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=innodb_fts-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=innodb_zip-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=maria-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=multi_source-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=optimizer_unfixed_bugs-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=parts-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=percona-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=perfschema-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=plugins-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=roles-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=rpl-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=sys_vars-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=unit-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=vcol-
   - cd "${TRAVIS_BUILD_DIR}"
   - export MYSQL_BUILD_CC=${CC}
   - export MYSQL_BUILD_CXX=${CXX}
