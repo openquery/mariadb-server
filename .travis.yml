@@ -9,6 +9,7 @@ compiler:
   - clang
 cache:
   - apt
+  - ccache
 addons:
   apt:
     sources:
@@ -80,7 +81,7 @@ script:
   - ulimit -c unlimited
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
   - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
-  - export MTROPTS=--report-times --parallel=4 --mem --force --fast --timer --retry-failure=2 --suite-timeout=39 ${BIGTEST}
+  - export MTROPTS="--report-times --parallel=4 --mem --force --fast --timer --retry-failure=2 --suite-timeout=39 ${BIGTEST}"
   - ./mysql-test-run.pl ${MTROPTS} --suite=main-
   - ./mysql-test-run.pl ${MTROPTS} --suite=archive-
   - ./mysql-test-run.pl ${MTROPTS} --suite=binlog-
