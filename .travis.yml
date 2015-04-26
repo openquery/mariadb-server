@@ -44,31 +44,31 @@ env:
     # TODO: https://scan.coverity.com/travis_ci
     #- secure: "xxxx"
 addons:
-  coverity_scan:
-
-    # GitHub project metadata
-    project:
-      - name: MariaDB/server
-      - version: 10.0
-      - description: MariaDB Server
-
-    # Where email notification of build analysis results will be sent
-    notification_email: maria-developers@lists.launchpad.net
-
-    # Commands to prepare for build_command
-    build_command_prepend: cmake .   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=Debug -DSYSTEM_TYPE="debian-linux-gnu"
-               -DWITH_SSL=system -DWITH_ZLIB=system
-               -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
-               -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
-               -DWITH_PARTITION_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
-   
-    # The command that will be added as an argument to "cov-build" to compile your project for analysis,
-    build_command: make
-
-    # Pattern to match selecting branches that will run analysis.
-    # Take care in resource usage, and consider the build frequency allowances per
-    #   https://scan.coverity.com/faq#frequency
-    branch_pattern: coverity_scan-.*
+#  coverity_scan:
+#
+#    # GitHub project metadata
+#    project:
+#      - name: MariaDB/server
+#      - version: 10.0
+#      - description: MariaDB Server
+#
+#    # Where email notification of build analysis results will be sent
+#    notification_email: maria-developers@lists.launchpad.net
+#
+#    # Commands to prepare for build_command
+#    build_command_prepend: cmake .   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=Debug -DSYSTEM_TYPE="debian-linux-gnu"
+#               -DWITH_SSL=system -DWITH_ZLIB=system
+#               -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
+#               -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
+#               -DWITH_PARTITION_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
+#   
+#    # The command that will be added as an argument to "cov-build" to compile your project for analysis,
+#    build_command: make
+#
+#    # Pattern to match selecting branches that will run analysis.
+#    # Take care in resource usage, and consider the build frequency allowances per
+#    #   https://scan.coverity.com/faq#frequency
+#    branch_pattern: coverity_scan-.*
   apt:
     sources:
       - ubuntu-toolchain-r-test
@@ -154,16 +154,18 @@ script:
 # TMP disable  - find . -name rpmbuild-client.err -exec cat {} \; || true
 
 after_failure:
+  - if [ "${TRAVIS_PULL_REQUEST}" = "false" && "${TRAVIS_REPO_SLUG}" = "MariaDB/server" ] && [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]; then
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
   - sh -c 'echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/jobs/${TRAVIS_JOB_ID}" > var/README.txt'
   - ABORTFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}.tar.bz2
-  - echo -e '\n\nTest failed - please report bug https://mariadb.atlassian.net/secure/RapidBoard.jspa?rapidView=24&projectKey=MDEV\n\n'
-  - echo ABORTFILE=${ABORTFILE}
+  - echo -e '\n\nTest failed - please report bug https://mariadb.atlassian.net/secure/RapidBoard.jspa?rapidView=24&projectKey=MDEV\nAnd reference file ${ABORTFILE} in private uploads\n'
   - tar --dereference -jcf "${ABORTFILE}" var ../sql/mysqld
-# TMP disable  - curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/
-# TODO: add to error upload: [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]
-
+  - curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/
+  - fi
+# TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of failure builds to help requester debug request
+# after_success:
 # TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of packages(?)
+
 notifications:
   irc:
     channels:
