@@ -5,8 +5,8 @@ sudo: required
 
 language: cpp
 compiler:
-  - gcc
-#  - clang
+#  - gcc
+  - clang
 cache:
   - apt
   - ccache
@@ -45,7 +45,7 @@ cache:
 # | rpl-                       |      38    | 38
 #
 env:
-  - BUILD_TYPE=Debug
+#  - BUILD_TYPE=Debug
 #  - BUILD_TYPE=RelWithDebInfo
   - TEST=main-,archive-,binlog-
   - TEST=csv-,federated-,funcs_1-,funcs_2-,handler-,heap-,maria-,multi_source-
