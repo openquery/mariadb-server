@@ -81,7 +81,8 @@ script:
   - ulimit -c unlimited
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
   - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
-  - export MTROPTS="--report-times --parallel=10 --mem --clean-vardir --force --fast --timer --retry-failure=2 --suite-timeout=39 ${BIGTEST}"
+# No tmpfs - symlink depth https://travis-ci.org/openquery/mariadb-server/jobs/60070480 (--mem --clean-vardir )
+  - export MTROPTS="--report-times --parallel=10 --force --fast --timer --retry-failure=2 --suite-timeout=39 ${BIGTEST}"
   - ./mysql-test-run.pl ${MTROPTS} --suite=main-
   - ./mysql-test-run.pl ${MTROPTS} --suite=archive-
   - ./mysql-test-run.pl ${MTROPTS} --suite=binlog-
