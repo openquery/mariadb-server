@@ -170,7 +170,7 @@ after_failure:
     fi
   - if [[ "${TRAVIS_PULL_REQUEST}" = "false" && "${TRAVIS_REPO_SLUG}" = "MariaDB/server" ]] && [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]; then
       cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
-      sh -c 'echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/jobs/${TRAVIS_JOB_ID}" > var/README.txt'
+      echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/jobs/${TRAVIS_JOB_ID}" > var/README.txt
       ABORTFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}.tar.bz2
       echo -e "\n\nTest failed - please report bug https://mariadb.atlassian.net/secure/RapidBoard.jspa?rapidView=24&projectKey=MDEV\nAnd reference file ${ABORTFILE} in private uploads\n\n"
       tar --dereference -jcf "${ABORTFILE}" var ../sql/mysqld
