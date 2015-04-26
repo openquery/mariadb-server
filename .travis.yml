@@ -6,10 +6,85 @@ sudo: required
 language: cpp
 compiler:
   - gcc
-  - clang
+#  - clang
 cache:
   - apt
+  - ccache
+
+#  Timing on build an test needs to be < 50 minutes. The compile is ~6-7minutes
+#  https://travis-ci.org/openquery/mariadb-server/builds/60083380
+# |  Test                      | time (min) |
+# | main-                      |      25    |
+# | archive-                   |       9    |
+# | binlog-                    |       6    | 40
+#
+# | csv-                       |       5    |
+# | federated-                 |       2    |
+# | funcs_1-                   |       5    |
+# | funcs_2-                   |       3    |
+# | handler-                   |       3    |
+# | heap-                      |       5    |
+# | maria-                     |      14    |
+# | multi_source-              |       3    | 40
+
+# | innodb-                    |      23    |
+# | innodb_fts-                |       3    |
+# | innodb_zip-                |       4    | 30
+
+# | optimizer_unfixed_bugs-    |       2    |
+# | parts-                     |      18    |
+# | sys_vars-                  |       5    |
+# | unit-                      |      10    |
+# | vcol-                      |       4    | 39
+#
+# | percona-                   |       4    |
+# | perfschema-                |       5    |
+# | plugins-                   |      
+# | roles-                     |       4    |
+#
+# | rpl-                       |      38    | 38
+#
+env:
+  - BUILD_TYPE=Debug
+#  - BUILD_TYPE=RelWithDebInfo
+  - TEST=main-,archive-,binlog-
+  - TEST=csv-,federated-,funcs_1-,funcs_2-,handler-,heap-,maria-,multi_source-
+  - TEST=innodb-,innodb_fts-,innodb_zip-
+  - TEST=optimizer_unfixed_bugs-,parts-,sys_vars-,unit-,vcol-
+  - TEST=percona-,perfschema-,plugins-,roles-
+  - TEST=rpl-
+
+  # TODO - watch yaml syntax here.
+  #global:
+    # COVERITY_SCAN_TOKEN
+    # TODO: https://scan.coverity.com/travis_ci
+    #- secure: "xxxx"
 addons:
+#  coverity_scan:
+#
+#    # GitHub project metadata
+#    project:
+#      - name: MariaDB/server
+#      - version: 10.0
+#      - description: MariaDB Server
+#
+#    # Where email notification of build analysis results will be sent
+#    notification_email: maria-developers@lists.launchpad.net
+#
+#    # Commands to prepare for build_command
+#    build_command_prepend: cmake .   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=Debug -DSYSTEM_TYPE="debian-linux-gnu"
+#               -DWITH_SSL=system -DWITH_ZLIB=system
+#               -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
+#               -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
+#               -DWITH_PARTITION_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
+#   
+#    # The command that will be added as an argument to "cov-build" to compile your project for analysis,
+#    build_command: make
+#
+#    # Pattern to match selecting branches that will run analysis.
+#    # Take care in resource usage, and consider the build frequency allowances per
+#    #   https://scan.coverity.com/faq#frequency
+#    branch_pattern: coverity_scan-.*
   apt:
     sources:
       - ubuntu-toolchain-r-test
@@ -48,7 +123,7 @@ addons:
       - sphinxsearch
       - rpm
       - libboost-all-dev
-      - libjudy-dev
+# TMP disable      - libjudy-dev
 before_install:
 # - sudo add-apt-repository -y "deb https://downloads.mariadb.com/files/MariaDB/repo/10.0/ubuntu precise main"
   - sudo add-apt-repository -y 'deb http://ftp.osuosl.org/pub/mariadb/repo/10.0/ubuntu precise main'
@@ -60,6 +135,7 @@ before_install:
   - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 50
 # still whitelist applies in VM mode
   - sudo apt-get install -y -qq  hardening-wrapper libreadline-gplv2-dev automake1.9 dpatch libaio-dev
+# TMP disable  - sudo apt-get install -y -qq libjudy-dev
 # try to pull binutil-2.23+ from trusty
   - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty main'
   - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty-security main'
@@ -68,27 +144,50 @@ before_install:
   - sudo apt-get install -y -qq binutils
 script:
   - mkdir debug_build; cd debug_build
-  - cmake ..   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=Debug -DSYSTEM_TYPE="debian-linux-gnu"
+  - cmake ..   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=${BUILD_TYPE:-Debug} -DSYSTEM_TYPE="debian-linux-gnu"
                -DWITH_SSL=system -DWITH_ZLIB=system
                -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
                -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
-               -DWITH_PARTITION_STORAGE_ENGINE=ON
+               -DWITH_PARTITION_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
+# -DWITHOUT_MROONGA_STORAGE_ENGINE there because too many clang warnings
   - make -j 4
 # Time limits on tests - 50mins - may not be possible
-#  - [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]] && BIGTEST=--big-test
-  - cd ../mysql-test && MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build ./mysql-test-run.pl ${BIGTEST} --report-times --parallel=4 --mem --force
+#  - [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]] &&
+  - BIGTEST=--big-test
+  # ulimit -c unlimited might become default: https://github.com/travis-ci/travis-ci/issues/3754
+  - sudo ulimit -c unlimited
+  - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
+  - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
+# No tmpfs - symlink depth https://travis-ci.org/openquery/mariadb-server/jobs/60070480 (--mem --clean-vardir )
+  - export MTROPTS="--report-times --parallel=4 --force --fast --timer --retry-failure=2 --suite-timeout=39 ${BIGTEST}"
+  - ./mysql-test-run.pl ${MTROPTS} --suite=${TEST}
   - cd "${TRAVIS_BUILD_DIR}"
   - export MYSQL_BUILD_CC=${CC}
   - export MYSQL_BUILD_CXX=${CXX}
-  - echo | env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
-  - cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6
-  - make -j 4 package
-  - find . -name rpmbuild-client.err -exec cat {} \; || true
-# touch - force build#2
+# TMP disable  - echo | env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
+# TMP disable  - cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6
+# TMP disable  - make -j 4 package
+# TMP disable  - find . -name rpmbuild-client.err -exec cat {} \; || true
+
+after_failure:
+  - if [[ "${TRAVIS_PULL_REQUEST}" = "false" && "${TRAVIS_REPO_SLUG}" = "MariaDB/server" ]] && [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]; then
+  - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
+  - sh -c 'echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/jobs/${TRAVIS_JOB_ID}" > var/README.txt'
+  - ABORTFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}.tar.bz2
+  - echo -e "\n\nTest failed - please report bug https://mariadb.atlassian.net/secure/RapidBoard.jspa?rapidView=24&projectKey=MDEV\nAnd reference file ${ABORTFILE} in private uploads\n\n"
+  - tar --dereference -jcf "${ABORTFILE}" var ../sql/mysqld
+# TMP disable  - curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/
+  - fi
+# TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of failure builds to help requester debug request
+#   - curl -v --user travisci:${ENCRYPTED_PASS}@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/travisfails/
+# after_success:
 # TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of packages(?)
+
 notifications:
   irc:
     channels:
       - "chat.freenode.net#maria"
     on_success: never # [always|never|change]
     on_failure: never
+    template:
+      - "%{repository}/%{branch} (%{commit} - %{author}): %{build_url}: %{message}"
