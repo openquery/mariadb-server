@@ -10,7 +10,64 @@ compiler:
 cache:
   - apt
   - ccache
+env:
+  - BUILD_TYPE=Debug
+  - BUILD_TYPE=RelWithDebInfo
+  - TEST=main-
+  - TEST=archive-
+  - TEST=binlog-
+  - TEST=csv-
+  - TEST=federated-
+  - TEST=funcs_1-
+  - TEST=funcs_2-
+  - TEST=handler-
+  - TEST=heap-
+  - TEST=innodb-
+  - TEST=innodb_fts-
+  - TEST=innodb_zip-
+  - TEST=maria-
+  - TEST=multi_source-
+  - TEST=optimizer_unfixed_bugs-
+  - TEST=parts-
+  - TEST=percona-
+  - TEST=perfschema-
+  - TEST=plugins-
+  - TEST=roles-
+  - TEST=rpl-
+  - TEST=sys_vars-
+  - TEST=unit-
+  - TEST=vcol-
+  # TODO - watch yaml syntax here.
+  #global:
+    # COVERITY_SCAN_TOKEN
+    # TODO: https://scan.coverity.com/travis_ci
+    #- secure: "xxxx"
 addons:
+  coverity_scan:
+
+    # GitHub project metadata
+    project:
+      - name: MariaDB/server
+      - version: 10.0
+      - description: MariaDB Server
+
+    # Where email notification of build analysis results will be sent
+    notification_email: maria-developers@lists.launchpad.net
+
+    # Commands to prepare for build_command
+    build_command_prepend: cmake .   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=Debug -DSYSTEM_TYPE="debian-linux-gnu"
+               -DWITH_SSL=system -DWITH_ZLIB=system
+               -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
+               -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
+               -DWITH_PARTITION_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
+   
+    # The command that will be added as an argument to "cov-build" to compile your project for analysis,
+    build_command: make
+
+    # Pattern to match selecting branches that will run analysis.
+    # Take care in resource usage, and consider the build frequency allowances per
+    #   https://scan.coverity.com/faq#frequency
+    branch_pattern: coverity_scan-.*
   apt:
     sources:
       - ubuntu-toolchain-r-test
@@ -70,7 +127,7 @@ before_install:
   - sudo apt-get install -y -qq binutils
 script:
   - mkdir debug_build; cd debug_build
-  - cmake ..   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=Debug -DSYSTEM_TYPE="debian-linux-gnu"
+  - cmake ..   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DSYSTEM_TYPE="debian-linux-gnu"
                -DWITH_SSL=system -DWITH_ZLIB=system
                -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
                -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
@@ -78,36 +135,14 @@ script:
 # -DWITHOUT_MROONGA_STORAGE_ENGINE there because too many clang warnings
   - make -j 4
 # Time limits on tests - 50mins - may not be possible
-#  - [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]] && BIGTEST=--big-test
+#  - [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]] &&
+  - BIGTEST=--big-test
   - ulimit -c unlimited
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
   - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
 # No tmpfs - symlink depth https://travis-ci.org/openquery/mariadb-server/jobs/60070480 (--mem --clean-vardir )
   - export MTROPTS="--report-times --parallel=4 --force --fast --timer --retry-failure=2 --suite-timeout=39 ${BIGTEST}"
-  - ./mysql-test-run.pl ${MTROPTS} --suite=main-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=archive-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=binlog-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=csv-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=federated-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=funcs_1-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=funcs_2-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=handler-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=heap-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=innodb-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=innodb_fts-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=innodb_zip-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=maria-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=multi_source-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=optimizer_unfixed_bugs-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=parts-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=percona-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=perfschema-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=plugins-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=roles-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=rpl-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=sys_vars-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=unit-
-  - ./mysql-test-run.pl ${MTROPTS} --suite=vcol-
+  - ./mysql-test-run.pl ${MTROPTS} --suite=${TEST}
   - cd "${TRAVIS_BUILD_DIR}"
   - export MYSQL_BUILD_CC=${CC}
   - export MYSQL_BUILD_CXX=${CXX}
