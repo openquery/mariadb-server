@@ -159,7 +159,7 @@ script:
   - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
 # removed --mem, --big-test created some tests a little too big for mem.
   - export MTROPTS="--report-times --parallel=4 --force --fast --timer --retry-failure=2 --suite-timeout=39 --big-test"
-  - [ ${COMPILE_RESULT} ] && ./mysql-test-run.pl ${MTROPTS} --suite=${TEST}
+  - if [ ${COMPILE_RESULT} -eq 0 ]; then ./mysql-test-run.pl ${MTROPTS} --suite=${TEST}; fi
   - TEST_RESULT=$?
   - cd "${TRAVIS_BUILD_DIR}"
   - export MYSQL_BUILD_CC=${CC}
@@ -186,7 +186,6 @@ after_failure:
   - BUILDFAIL_TAR=1
   - if [[ "${TEST_RESULT}" -gt 0 ]]; then
       cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test;
-      echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/jobs/${TRAVIS_JOB_ID}" > var/README.txt;
       ABORTFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}-test-fail.tar.bz2;
       tar --dereference -jcf "${ABORTFILE}" var ../sql/mysqld;
       BUILDFAIL_TAR=$?;
@@ -197,6 +196,7 @@ after_failure:
       curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/
     fi
 
+#  travis-lint fail: echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/jobs/${TRAVIS_JOB_ID}" > var/README.txt;
 after_success:
   - openssl aes-256-cbc -K $encrypted_de260eab5a53_key -iv $encrypted_de260eab5a53_iv -in .travis.id_rsa.enc -out .travis.id_rsa -d
   - if [[ "${PKG_RESULT}" -eq 0 ]]; then
