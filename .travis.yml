@@ -167,8 +167,7 @@ script:
                -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
                -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
                -DWITH_PARTITION_STORAGE_ENGINE=ON ${CMAKE_EXTRA}
-  - make -j 4 ; COMPILE_RESULT=$?
-  - echo COMPILE_RESULT=${COMPILE_RESULT}
+  - make -j 4
   - COMPILE_RESULT=0
   # ulimit -c unlimited might become default: https://github.com/travis-ci/travis-ci/issues/3754 - some nodes it seems are 0 others aren't
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
