@@ -152,8 +152,7 @@ script:
                -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
                -DWITH_PARTITION_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
 # -DWITHOUT_MROONGA_STORAGE_ENGINE there because too many clang warnings
-  - make -j 4
-  - COMPILE_RESULT=$?
+  - make -j 4 ; COMPILE_RESULT=$?
   - echo COMPILE_RESULT=${COMPILE_RESULT}
   - COMPILE_RESULT=0
   # ulimit -c unlimited might become default: https://github.com/travis-ci/travis-ci/issues/3754 - some nodes it seems are 0 others aren't
@@ -169,12 +168,14 @@ script:
 # shortest running build
   - PKG_RESULT=1
   - if [[ "${TEST}" =~ percona && "${CC}" -eq "gcc" && ${TEST_RESULT} -eq 0 ]]; then
-      echo | env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
       cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6;
       make -j 4 package;
-      PKG_RESULT=$?
-      find . -name rpmbuild-client.err -exec cat {} \; || true;
-   fi
+      find . -name \*.rpm -ls
+      find . -name rpmbuild-client.err -exec cat {} \;
+      DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
+      PKG_RESULT=$?;
+      find . -name \*.deb -ls;
+    fi
 
 
 # .travis.known_hosts
@@ -184,7 +185,7 @@ after_failure:
   - if [[ "${COMPILE_RESULT}" -gt 0 ]]; then
       COMPILEFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}-compile-fail.tar.bz2;
       tar --dereference -jcf "${COMPILEFILE}" `find  "${TRAVIS_BUILD_DIR}"/debug_build -name \*.o`;
-      echo put ${COMPILEFILE} | sftp -b - -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER};
+      echo put ${COMPILEFILE} | sftp -b - -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa travis@${UPLOADSERVER};
     fi
   - BUILDFAIL_TAR=1
   - if [[ "${TEST_RESULT}" -gt 0 ]]; then
@@ -192,7 +193,7 @@ after_failure:
       ABORTFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}-test-fail.tar.bz2;
       tar --dereference -jcf "${ABORTFILE}" var ../sql/mysqld;
       BUILDFAIL_TAR=$?;
-      echo put ${COMPILEFILE} | sftp -b - -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER};
+      echo put ${COMPILEFILE} | sftp -b - -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa travis@${UPLOADSERVER};
     fi
   - if [[ "${TRAVIS_PULL_REQUEST}" = "false" && "${TRAVIS_REPO_SLUG}" = "MariaDB/server" && ${BUILDFAIL_TAR} -eq 0 ]] && [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]; then
       echo -e "\n\nTest failed - please report bug https://mariadb.atlassian.net/secure/RapidBoard.jspa?rapidView=24&projectKey=MDEV\nAnd reference file ${ABORTFILE} in private uploads\n\n";
@@ -209,7 +210,7 @@ after_success:
 #  - for PKGFILE in *.rpm debian/*.deb; do
 # TODO consider renaming file based on TRAVIS_ vars
 #        echo put ${PKGFILE};
-#      done | sftp -b - -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER};
+#      done | sftp -b - -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa travis@${UPLOADSERVER};
 #    fi
 
 notifications:
