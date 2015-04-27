@@ -166,7 +166,7 @@ script:
 
 after_failure:
   - if [[ "${COMPILE_RESULT}" -gt 0 ]]; then
-      tar --dereference -jcf x.tar.bz2 `find  "${TRAVIS_BUILD_DIR}"/debug_build -name \*.o`
+      tar --dereference -jcf x.tar.bz2 `find  "${TRAVIS_BUILD_DIR}"/debug_build -name \*.o`;
     fi
   - if [[ "${TRAVIS_PULL_REQUEST}" = "false" && "${TRAVIS_REPO_SLUG}" = "MariaDB/server" ]] && [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]; then
       cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
