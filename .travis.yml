@@ -154,6 +154,8 @@ script:
 # -DWITHOUT_MROONGA_STORAGE_ENGINE there because too many clang warnings
   - make -j 4
   - COMPILE_RESULT=$?
+  - echo COMPILE_RESULT=${COMPILE_RESULT}
+  - COMPILE_RESULT=0
   # ulimit -c unlimited might become default: https://github.com/travis-ci/travis-ci/issues/3754 - some nodes it seems are 0 others aren't
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
   - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
