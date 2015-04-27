@@ -221,7 +221,7 @@ after_failure:
 
 after_success:
   - openssl aes-256-cbc -K $encrypted_de260eab5a53_key -iv $encrypted_de260eab5a53_iv -in .travis.id_rsa.enc -out .travis.id_rsa -d
-  - cd "${TRAVIS_BUILD_DIR}"/debug_build
+  - cd "${TRAVIS_BUILD_DIR}"
   - lcov --directory . --capture --output-file coverage.info
   - lcov --remove coverage.info 'mysql-test/*' '/usr/*' --output-file coverage.info
   - lcov --list coverage.info
