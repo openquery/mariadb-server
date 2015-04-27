@@ -158,7 +158,7 @@ script:
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
   - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
 # removed --mem, --big-test created some tests a little too big for mem.
-  - export MTROPTS="--report-times --parallel=4 --force --fast --timer --retry-failure=2 --suite-timeout=39 --big-test"
+  - MTROPTS="--report-times --parallel=4 --force --fast --timer --retry-failure=2 --suite-timeout=39 --big-test"
   - TEST_RESULT=1
   - if [ ${COMPILE_RESULT} -eq 0 ]; then ./mysql-test-run.pl ${MTROPTS} --suite=${TEST}; TEST_RESULT=$?; fi
   - cd "${TRAVIS_BUILD_DIR}"
