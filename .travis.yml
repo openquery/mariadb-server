@@ -129,6 +129,7 @@ addons:
       - rpm
       - libboost-all-dev
 # TMP disable      - libjudy-dev
+
 before_install:
 # - sudo add-apt-repository -y "deb https://downloads.mariadb.com/files/MariaDB/repo/10.0/ubuntu precise main"
   - sudo add-apt-repository -y 'deb http://ftp.osuosl.org/pub/mariadb/repo/10.0/ubuntu precise main'
@@ -148,19 +149,25 @@ before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -y -qq binutils lcov
   - gem install coveralls-lcov
+
+
+
 script:
-# Useful to do a test run of BUILD_TYPE=RelWithDebInfo now and then
+# Useful to do a test run of LD_TYPE=RelWithDebInfo now and then
 # Chose coverity_scan* branch as a) its less often and b) with coverity_scan going there is less build time available (and Debug has more tests)
-  - if [[ "${TRAVIS_BRANCH}" == coveralls* ]]; then BUILD_TYPE=RelWithDebInfo; fi
+  - if [[ "${TRAVIS_BRANCH}" == coveralls* ]]; then
+      BUILD_TYPE=RelWithDebInfo ;
+    fi
+#
 # cover coverage can worth with gcc and clang. Once choses to reduce load.
 # -DWITHOUT_MROONGA_STORAGE_ENGINE there because too many clang warnings
-  - if [ "${CC}" == "gcc" ]; then CMAKE_EXTRA="-DENABLE_GCOV=ON ; else CMAKE_EXTRA=-DWITHOUT_MROONGA_STORAGE_ENGINE=ON ; fi
+  - if [ "${CC}" == "gcc" ]; then CMAKE_EXTRA=-DENABLE_GCOV=ON ; else CMAKE_EXTRA=-DWITHOUT_MROONGA_STORAGE_ENGINE=ON ; fi
   - mkdir debug_build; cd debug_build
   - cmake ..   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=${BUILD_TYPE:-Debug} -DSYSTEM_TYPE="debian-linux-gnu"
                -DWITH_SSL=system -DWITH_ZLIB=system
                -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
                -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
-               -DWITH_PARTITION_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
+               -DWITH_PARTITION_STORAGE_ENGINE=ON ${CMAKE_EXTRA}
   - make -j 4 ; COMPILE_RESULT=$?
   - echo COMPILE_RESULT=${COMPILE_RESULT}
   - COMPILE_RESULT=0
@@ -176,17 +183,17 @@ script:
   - export MYSQL_BUILD_CXX=${CXX}
 # shortest running build
   - PKG_RESULT=1
-  - if [[ "${TEST}" =~ percona && "${CC}" -eq "gcc" && ${TEST_RESULT} -eq 0 ]]; then
+#  - if [[ "${TEST}" =~ percona && "${CC}" -eq "gcc" && ${TEST_RESULT} -eq 0 ]]; then
 # TMP disable: too much output - duplicate inclusion
 #      cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6;
 #      make -j 4 package;
-      find . -name \*.rpm -ls
-      find . -name rpmbuild-client.err -exec cat {} \;
+#      find . -name \*.rpm -ls
+#      find . -name rpmbuild-client.err -exec cat {} \;
 # TMP disable - playing with coveralls now.
 #      DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
 #      PKG_RESULT=$?;
-      find . -name \*.deb -ls;
-    fi ; true
+#      find . -name \*.deb -ls;
+#    fi ; true
 
 
 # .travis.known_hosts
