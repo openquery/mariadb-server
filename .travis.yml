@@ -154,7 +154,8 @@ script:
   # ulimit -c unlimited might become default: https://github.com/travis-ci/travis-ci/issues/3754 - some nodes it seems are 0 others aren't
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
   - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
-  - export MTROPTS="--report-times --parallel=4 --mem --force --fast --timer --retry-failure=2 --suite-timeout=39 --big-test"
+# removed --mem, --big-test created some tests a little too big for mem.
+  - export MTROPTS="--report-times --parallel=4 --force --fast --timer --retry-failure=2 --suite-timeout=39 --big-test"
   - ./mysql-test-run.pl ${MTROPTS} --suite=${TEST}
   - cd "${TRAVIS_BUILD_DIR}"
   - export MYSQL_BUILD_CC=${CC}
