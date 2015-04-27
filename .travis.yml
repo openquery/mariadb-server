@@ -182,7 +182,7 @@ after_failure:
   - if [[ "${COMPILE_RESULT}" -gt 0 ]]; then
       COMPILEFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}-compile-fail.tar.bz2;
       tar --dereference -jcf "${COMPILEFILE}" `find  "${TRAVIS_BUILD_DIR}"/debug_build -name \*.o`;
-      echo put ${COMPILEFILE} | sftp -b -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER};
+      echo put ${COMPILEFILE} | sftp -b - -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER};
     fi
   - BUILDFAIL_TAR=1
   - if [[ "${TEST_RESULT}" -gt 0 ]]; then
@@ -190,7 +190,7 @@ after_failure:
       ABORTFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}-test-fail.tar.bz2;
       tar --dereference -jcf "${ABORTFILE}" var ../sql/mysqld;
       BUILDFAIL_TAR=$?;
-      echo put ${COMPILEFILE} | sftp -b -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER};
+      echo put ${COMPILEFILE} | sftp -b - -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER};
     fi
   - if [[ "${TRAVIS_PULL_REQUEST}" = "false" && "${TRAVIS_REPO_SLUG}" = "MariaDB/server" && ${BUILDFAIL_TAR} -eq 0 ]] && [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]; then
       echo -e "\n\nTest failed - please report bug https://mariadb.atlassian.net/secure/RapidBoard.jspa?rapidView=24&projectKey=MDEV\nAnd reference file ${ABORTFILE} in private uploads\n\n";
@@ -207,7 +207,7 @@ after_success:
 #  - for PKGFILE in *.rpm debian/*.deb; do
 # TODO consider renaming file based on TRAVIS_ vars
 #        echo put ${PKGFILE};
-#      done | sftp -b -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER};
+#      done | sftp -b - -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER};
 #    fi
 
 notifications:
