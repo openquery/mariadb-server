@@ -54,7 +54,10 @@ env:
     - TEST=optimizer_unfixed_bugs-,parts-,sys_vars-,unit-,vcol-
     - TEST=percona-,perfschema-,plugins-,roles-
     - TEST=rpl-
-  #global:
+  global:
+    # - UPLOADSERVER= 
+    # http://docs.travis-ci.com/user/encryption-keys/
+    - secure: "dAz+t+awql8sETqZfB8ORszN7hn6vl5WDtMhYEudPBWWldfg5cemCkSHqur8dALsLzyQdopqUqvsjxiV2BIq97btMXuDaB1XVzKnXKef9XQ0jVDa34kg/PsF9Aof0VqPmMLHZAmfhOtAtuHg9lOd3l8lWo339RxnO7xBKnZo1Qg="
     # COVERITY_SCAN_TOKEN
     # TODO: https://scan.coverity.com/travis_ci
     #- secure: "xxxx"
@@ -156,31 +159,52 @@ script:
   - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
 # removed --mem, --big-test created some tests a little too big for mem.
   - export MTROPTS="--report-times --parallel=4 --force --fast --timer --retry-failure=2 --suite-timeout=39 --big-test"
-  - ./mysql-test-run.pl ${MTROPTS} --suite=${TEST}
+  - [ ${COMPILE_RESULT} ] && ./mysql-test-run.pl ${MTROPTS} --suite=${TEST}
+  - TEST_RESULT=$?
   - cd "${TRAVIS_BUILD_DIR}"
   - export MYSQL_BUILD_CC=${CC}
   - export MYSQL_BUILD_CXX=${CXX}
-# TMP disable  - echo | env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh
-# TMP disable  - cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6
-# TMP disable  - make -j 4 package
-# TMP disable  - find . -name rpmbuild-client.err -exec cat {} \; || true
+# shortest running build
+  - PKG_RESULT=1
+  - if [[ "${TEST}" =~ percona && "${CC}" -eq "gcc" && ${TEST_RESULT} -eq 0 ]]; then
+      echo | env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
+      cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6;
+      make -j 4 package;
+      PKG_RESULT=$?
+      find . -name rpmbuild-client.err -exec cat {} \; || true;
+   fi
 
+# .travis.known_hosts
+# ssh -o VerifyHostKeyDNS=yes -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER}
 after_failure:
+  - openssl aes-256-cbc -K $encrypted_de260eab5a53_key -iv $encrypted_de260eab5a53_iv -in .travis.id_rsa.enc -out .travis.id_rsa -d
   - if [[ "${COMPILE_RESULT}" -gt 0 ]]; then
-      tar --dereference -jcf x.tar.bz2 `find  "${TRAVIS_BUILD_DIR}"/debug_build -name \*.o`;
+      COMPILEFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}-compile-fail.tar.bz2;
+      tar --dereference -jcf "${COMPILEFILE}" `find  "${TRAVIS_BUILD_DIR}"/debug_build -name \*.o`;
+      echo put ${COMPILEFILE} | sftp -b -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER};
     fi
-  - if [[ "${TRAVIS_PULL_REQUEST}" = "false" && "${TRAVIS_REPO_SLUG}" = "MariaDB/server" ]] && [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]; then
+  - BUILDFAIL_TAR=1
+  - if [[ "${TEST_RESULT}" -gt 0 ]]; then
       cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test;
-      ABORTFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}.tar.bz2;
-      echo -e "\n\nTest failed - please report bug https://mariadb.atlassian.net/secure/RapidBoard.jspa?rapidView=24&projectKey=MDEV\nAnd reference file ${ABORTFILE} in private uploads\n\n";
+      echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/jobs/${TRAVIS_JOB_ID}" > var/README.txt;
+      ABORTFILE=travis-ci.org-${TRAVIS_REPO_SLUG/\//-}-jobs-${TRAVIS_JOB_ID}#${TRAVIS_JOB_NUMBER}-${TRAVIS_COMMIT}-test-fail.tar.bz2;
       tar --dereference -jcf "${ABORTFILE}" var ../sql/mysqld;
+      BUILDFAIL_TAR=$?;
+      echo put ${COMPILEFILE} | sftp -b -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER};
     fi
-#     echo "Error in travis build: URL https://travis-ci.org/${TRAVIS_REPO_SLUG}/jobs/${TRAVIS_JOB_ID}" > var/README.txt
-# TMP disable  - curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/
-# TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of failure builds to help requester debug request
-#   - curl -v --user travisci:${ENCRYPTED_PASS}@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/travisfails/
-# after_success:
-# TODO http://docs.travis-ci.com/user/deployment/custom/ - push to public upload of packages(?)
+  - if [[ "${TRAVIS_PULL_REQUEST}" = "false" && "${TRAVIS_REPO_SLUG}" = "MariaDB/server" && ${BUILDFAIL_TAR} -eq 0 ]] && [[ "${TRAVIS_BRANCH}" = '10.1' || "${TRAVIS_BRANCH}" = '10.0' ||  "${TRAVIS_BRANCH}"  = '5.5'  ]]; then
+      echo -e "\n\nTest failed - please report bug https://mariadb.atlassian.net/secure/RapidBoard.jspa?rapidView=24&projectKey=MDEV\nAnd reference file ${ABORTFILE} in private uploads\n\n";
+      curl -v --user anonymous:build@travis-ci.org -T "${ABORTFILE}"  ftp://ftp.askmonty.org/private/
+    fi
+
+after_success:
+  - openssl aes-256-cbc -K $encrypted_de260eab5a53_key -iv $encrypted_de260eab5a53_iv -in .travis.id_rsa.enc -out .travis.id_rsa -d
+  - if [[ "${PKG_RESULT}" -eq 0 ]]; then
+      for PKGFILE in *.rpm debian/*.deb; do
+# TODO consider renaming file based on TRAVIS_ vars
+        echo put ${PKGFILE};
+      done | sftp -b -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER};
+    fi
 
 notifications:
   irc:
