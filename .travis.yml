@@ -139,14 +139,14 @@ before_install:
   - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 50
   - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 50
 # still whitelist applies in VM mode
-  - sudo apt-get install -y -qq  hardening-wrapper libreadline-gplv2-dev automake1.9 dpatch libaio-dev lcov
+  - sudo apt-get install -y -qq  hardening-wrapper libreadline-gplv2-dev automake1.9 dpatch libaio-dev
 # TMP disable  - sudo apt-get install -y -qq libjudy-dev
 # try to pull binutil-2.23+ from trusty
   - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty main'
   - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty-security main'
   - sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0x3B4FE6ACC0B21F32
   - sudo apt-get update -qq
-  - sudo apt-get install -y -qq binutils
+  - sudo apt-get install -y -qq binutils lcov
   - gem install coveralls-lcov
 
 
@@ -157,8 +157,7 @@ script:
   - if [[ "${TRAVIS_BRANCH}" == coveralls* ]]; then
       BUILD_TYPE=RelWithDebInfo ;
     fi
-#
-# cover coverage can worth with gcc and clang. Once choses to reduce load.
+# coveralls coverage can work with gcc and clang. We only choose one to reduce load and because it probably doesn't make much difference which on.
 # -DWITHOUT_MROONGA_STORAGE_ENGINE there because too many clang warnings
   - if [ "${CC}" == "gcc" ]; then CMAKE_EXTRA=-DENABLE_GCOV=ON ; else CMAKE_EXTRA=-DWITHOUT_MROONGA_STORAGE_ENGINE=ON ; fi
   - mkdir debug_build; cd debug_build
@@ -167,14 +166,13 @@ script:
                -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
                -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
                -DWITH_PARTITION_STORAGE_ENGINE=ON ${CMAKE_EXTRA}
-  - make -j 4 ; COMPILE_RESULT=$?
-  - echo COMPILE_RESULT=${COMPILE_RESULT}
-  - COMPILE_RESULT=0
+  - COMPILE_RESULT=1
+  - make -j 4 && COMPILE_RESULT=0
   # ulimit -c unlimited might become default: https://github.com/travis-ci/travis-ci/issues/3754 - some nodes it seems are 0 others aren't
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
   - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
-# removed --mem, --big-test created some tests a little too big for mem.
-  - MTROPTS="--report-times --parallel=6 --force --fast --timer --retry-failure=2 --suite-timeout=39 --big-test"
+# removed --mem, --big-test created some tests a little too big for mem. 60 minutes timeout needsed on --big-test.
+  - MTROPTS="--report-times --parallel=6 --force --fast --timer --retry-failure=2 --suite-timeout=60 --big-test"
   - TEST_RESULT=1
   - if [ ${COMPILE_RESULT} -eq 0 ]; then ./mysql-test-run.pl ${MTROPTS} --suite=${TEST}; TEST_RESULT=$?; fi
   - cd "${TRAVIS_BUILD_DIR}"
