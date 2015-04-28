@@ -167,13 +167,13 @@ script:
                -DWITH_EMBEDDED_SERVER=ON -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
                -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
                -DWITH_PARTITION_STORAGE_ENGINE=ON ${CMAKE_EXTRA}
-  - make -j 4
-  - COMPILE_RESULT=0
+  - COMPILE_RESULT=1
+  - make -j 4 && COMPILE_RESULT=0
   # ulimit -c unlimited might become default: https://github.com/travis-ci/travis-ci/issues/3754 - some nodes it seems are 0 others aren't
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
   - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
 # removed --mem, --big-test created some tests a little too big for mem.
-  - MTROPTS="--report-times --parallel=6 --force --fast --timer --retry-failure=2 --suite-timeout=39 --big-test"
+  - MTROPTS="--report-times --parallel=6 --force --fast --timer --retry-failure=2 --suite-timeout=60 --big-test"
   - TEST_RESULT=1
   - if [ ${COMPILE_RESULT} -eq 0 ]; then ./mysql-test-run.pl ${MTROPTS} --suite=${TEST}; TEST_RESULT=$?; fi
   - cd "${TRAVIS_BUILD_DIR}"
