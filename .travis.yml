@@ -157,8 +157,7 @@ script:
   - if [[ "${TRAVIS_BRANCH}" == coveralls* ]]; then
       BUILD_TYPE=RelWithDebInfo ;
     fi
-#
-# cover coverage can worth with gcc and clang. Once choses to reduce load.
+# coveralls coverage can work with gcc and clang. We only choose one to reduce load and because it probably doesn't make much difference which on.
 # -DWITHOUT_MROONGA_STORAGE_ENGINE there because too many clang warnings
   - if [ "${CC}" == "gcc" ]; then CMAKE_EXTRA=-DENABLE_GCOV=ON ; else CMAKE_EXTRA=-DWITHOUT_MROONGA_STORAGE_ENGINE=ON ; fi
   - mkdir debug_build; cd debug_build
@@ -172,7 +171,7 @@ script:
   # ulimit -c unlimited might become default: https://github.com/travis-ci/travis-ci/issues/3754 - some nodes it seems are 0 others aren't
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
   - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
-# removed --mem, --big-test created some tests a little too big for mem.
+# removed --mem, --big-test created some tests a little too big for mem. 60 minutes timeout needsed on --big-test.
   - MTROPTS="--report-times --parallel=6 --force --fast --timer --retry-failure=2 --suite-timeout=60 --big-test"
   - TEST_RESULT=1
   - if [ ${COMPILE_RESULT} -eq 0 ]; then ./mysql-test-run.pl ${MTROPTS} --suite=${TEST}; TEST_RESULT=$?; fi
