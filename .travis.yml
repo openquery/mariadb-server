@@ -169,8 +169,6 @@ script:
                -DWITH_PARTITION_STORAGE_ENGINE=ON ${CMAKE_EXTRA}
   - COMPILE_RESULT=1
   - make -j 4 && COMPILE_RESULT=0
-# to trick travis into seeing a return code from compile
-  - expr ${COMPILE_RESULT}==0
   # ulimit -c unlimited might become default: https://github.com/travis-ci/travis-ci/issues/3754 - some nodes it seems are 0 others aren't
   - cd "${TRAVIS_BUILD_DIR}"/debug_build/mysql-test
   - export MTR_BINDIR="${TRAVIS_BUILD_DIR}"/debug_build 
