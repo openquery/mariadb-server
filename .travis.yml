@@ -138,8 +138,6 @@ before_install:
   - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 50
   - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 50
   - sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-5 50
-  - sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-3.6 50
-  - sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-3.6 50
 # still whitelist applies in VM mode
   - sudo apt-get install -y -qq hardening-wrapper libreadline-gplv2-dev automake1.9 dpatch libaio-dev lcov
 # MDEV-8051 - clang has OQgraph error - just not installing dep for now
@@ -156,6 +154,9 @@ before_install:
 #  - source ${TRAVIS_BUILD_DIR}/.pyenv/activate
 #  - sudo pip install cpp-coveralls
   - gem install coveralls-lcov
+  - if [ ${CC} == "clang" ]; then
+    export CC=/usr/bin/clang-3.6 CXX=/usr/bin/clang++-3.6;
+    fi
 
 
 
