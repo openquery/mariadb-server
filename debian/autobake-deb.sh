@@ -8,7 +8,7 @@
 set -e
 
 # Debug script and command lines
-#set -x
+set -x
 
 # Don't run the mysql-test-run test suite as part of build.
 # It takes a lot of time, and we will do a better test anyway in
