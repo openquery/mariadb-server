@@ -48,7 +48,8 @@ cache:
 env:
   matrix:
     - TEST=main-,archive-,binlog-
-    - TEST=csv-,federated-,funcs_1-,funcs_2-,handler-,heap-,maria-,multi_source-,percona-,perfschema-,plugins-,roles-
+    - TEST=csv-,federated-,funcs_1-,funcs_2-,handler-,heap-,maria-,percona-,perfschema-,plugins-,roles-
+# 10.0+ multi_source-  ^^^
     - TEST=innodb-,innodb_fts-,innodb_zip-
     - TEST=optimizer_unfixed_bugs-,parts-,sys_vars-,unit-,vcol-
     - TEST=rpl-
