@@ -6,6 +6,7 @@ sudo: required
 language: cpp
 compiler:
   - gcc
+# MDEV-7398 for clang problems on 10.1 branch
   - clang
 cache:
   - apt
@@ -92,9 +93,11 @@ addons:
     sources:
       - ubuntu-toolchain-r-test
       - mariadb-10.0
+      - llvm-toolchain-precise-3.6
     packages:
       - gcc-5
       - g++-5
+      - clang-3.6
 #      - gcc-4.9
 #      - g++-4.9
 #      - binutils
@@ -135,6 +138,8 @@ before_install:
   - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 50
   - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 50
   - sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-5 50
+  - sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-3.6 50
+  - sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-3.6 50
 # still whitelist applies in VM mode
   - sudo apt-get install -y -qq hardening-wrapper libreadline-gplv2-dev automake1.9 dpatch libaio-dev lcov
 # MDEV-8051 - clang has OQgraph error - just not installing dep for now
