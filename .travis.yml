@@ -132,15 +132,15 @@ addons:
       - sphinxsearch
       - rpm
       - libboost-all-dev
-# TMP disable MDEV8051 - libjudy-dev
+# TMP disable MDEV8051 - libjudy-dev - https://github.com/travis-ci/travis-ci/issues/3762
 
 before_install:
 # need to do before installing hardening-wrapper
   - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 50
   - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 50
   - sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-5 50
-# still whitelist applies in VM mode
-  - sudo apt-get install -y -qq hardening-wrapper libreadline-gplv2-dev automake1.9 dpatch libaio-dev lcov
+# still whitelist applies in VM mode: https://github.com/travis-ci/travis-ci/issues/3762
+  - sudo apt-get install -y -qq lcov
 # MDEV-8051 - clang has OQgraph error - just not installing dep for now
 #  - if [ ${CC} != "clang" ]; then
 #      sudo apt-get install -y -qq libjudy-dev;
