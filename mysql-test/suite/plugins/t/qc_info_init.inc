@@ -12,8 +12,9 @@ select statement_schema, statement_text, result_blocks_count, result_blocks_size
 
 select @@time_zone into @time_zone;
 select @@default_week_format into @default_week_format;
-select @@character_set_connection into @character_set_connection;
-select @@character_set_connection into @character_set_connection;
+select @@character_set_client into @character_set_client;
+select @@character_set_results into @character_set_results;
+select @@collation_connection into @collation_connection;
 select @@sql_mode into @sql_mode;
 select @@div_precision_increment into @div_precision_increment;
 select @@lc_time_names into @lc_time_names;
@@ -21,9 +22,21 @@ select @@max_sort_length into @max_sort_length;
 select @@autocommit into @autocommit;
 select @@group_concat_max_len into @group_concat_max_len;
 select Name into @new_time_zone from mysql.time_zone_name limit 1;
-set time_zone=@new_time_zone,default_week_format=4,character_set_connection='utf32',collation_connection='utf32_bin',sql_mode='STRICT_ALL_TABLES',div_precision_increment=7,lc_time_names='ar_SD',autocommit=0, group_concat_max_len=513, max_sort_length=1011;
+set sql_mode='ONLY_FULL_GROUP_BY';
+set lc_time_names='ar_SD';
+set time_zone=@new_time_zone,default_week_format=4,character_set_client='binary', character_set_results='utf32',collation_connection='utf32_bin';
+set div_precision_increment=7;
+set autocommit=0, group_concat_max_len=513, max_sort_length=1011;
+--disable_result_log
 select * from t1;
-set time_zone= @time_zone, default_week_format= @default_week_format, character_set_connection= @character_set_connection,character_set_connection= @character_set_connection, sql_mode= @sql_mode, div_precision_increment= @div_precision_increment, lc_time_names= @lc_time_names, autocommit= @autocommit, group_concat_max_len= @group_concat_max_len, max_sort_length= @max_sort_length;
+--enable_result_log
+set character_set_client= @character_set_client;
+set character_set_results= @character_set_results;
+set collation_connection= @collation_connection;
+set time_zone= @time_zone, default_week_format= @default_week_format;
+set sql_mode= @sql_mode, div_precision_increment= @div_precision_increment;
+set lc_time_names= @lc_time_names, autocommit= @autocommit, group_concat_max_len= @group_concat_max_len;
+set max_sort_length= @max_sort_length;
 
 select * from information_schema.query_cache_info;
 
