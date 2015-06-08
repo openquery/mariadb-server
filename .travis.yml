@@ -163,6 +163,8 @@ before_install:
 
 
 script:
+  - sudo service mysql stop
+  - sudo service postgresql stop
   - free -m
   - top -b -n 3
   - ${CC} --version ; ${CXX} --version ; gcov --version
