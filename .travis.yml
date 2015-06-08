@@ -141,7 +141,7 @@ before_install:
   - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 50
   - sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-5 50
 # still whitelist applies in VM mode: https://github.com/travis-ci/travis-ci/issues/3762
-  - sudo apt-get install -y -qq lcov
+  - sudo apt-get install -y -qq lcov dropbear
 # MDEV-8051 - clang has OQgraph error - just not installing dep for now
 #  - if [ ${CC} != "clang" ]; then
 #      sudo apt-get install -y -qq libjudy-dev;
@@ -165,6 +165,7 @@ before_install:
 script:
   - sudo service mysql stop
   - sudo service postgresql stop
+  - sudo service ssh stop && service dropbear start
   - free -m
   - top -b -n 3
   - ${CC} --version ; ${CXX} --version ; gcov --version
