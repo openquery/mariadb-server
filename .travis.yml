@@ -182,7 +182,7 @@ script:
 # TMP disable:  -DWITH_EMBEDDED_SERVER=ON
   - COMPILE_RESULT=0
 # -j4 was too much - resulted in internal compile error due to OOM
-  - make -j 2 || COMPILE_RESULT=$?; expr ${COMPILE_RESULT} == 0
+  - make -j 1 || COMPILE_RESULT=$?; expr ${COMPILE_RESULT} == 0
   - if [ ${COMPILE_RESULT} -gt 0 ] && [ ${CC} != "clang" ]; then
       cat /usr/share/doc/gcc-5/README.Bugs;
     fi
@@ -199,7 +199,7 @@ script:
 # shortest running build
   - PKG_RESULT=1
 # build is over 10 mins - without output that could fail.
-  - if [[ "${TEST}" =~ percona && "${CC}" -eq "gcc" && ${TEST_RESULT} -eq 0 ]]; then
+  - if [[ "${TEST}" =~ percona ]] && [[ "${CC}" -eq "gcc" ]] && [[ ${TEST_RESULT} -eq 0 ]]; then
       travis_wait env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
       PKG_RESULT=$?;
       find . -name \*.deb -ls;
