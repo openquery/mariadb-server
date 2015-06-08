@@ -159,13 +159,13 @@ before_install:
   - if [ ${CC} == "clang" ]; then
     export CC=/usr/bin/clang-3.7 CXX=/usr/bin/clang++-3.7;
     fi
-
+  - sudo service mysql stop
+  - sudo service postgresql stop
+  - sudo service ssh stop
+  - sudo apt-get remove policykit-1
 
 
 script:
-  - sudo service mysql stop
-  - sudo service postgresql stop
-  - sudo service ssh stop && service dropbear start
   - free -m
   - top -b -n 3
   - ${CC} --version ; ${CXX} --version ; gcov --version
