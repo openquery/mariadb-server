@@ -164,7 +164,7 @@ before_install:
 
 script:
   - free -m
-  - top -b -n 3 -o VIRT
+  - top -b -n 3
   - ${CC} --version ; ${CXX} --version ; gcov --version
 # Useful to do a test run of LD_TYPE=RelWithDebInfo now and then
 # Chose coverity_scan* branch as a) its less often and b) with coverity_scan going there is less build time available (and Debug has more tests)
