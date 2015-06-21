@@ -226,21 +226,8 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
       if (vp->atp) {
         strncpy(colname, vp->atp->GetName(g), sizeof(colname));
         strncat(xcol->Name, colname, 64);
-<<<<<<< HEAD
-
-        switch (vp->atp->GetText(g, buf, sizeof(buf))) {
-          case RC_INFO:
-            PushWarning(g, txmp);
-          case RC_OK:
-            strncat(fmt, "@", sizeof(fmt));
-            break;
-          default:
-            goto err;
-          } // enswitch rc
-=======
         vp->atp->GetText(g, buf, sizeof(buf));
         strncat(fmt, "@", sizeof(fmt));
->>>>>>> 10.1
 
         if (j)
           strncat(fmt, colname, sizeof(fmt));
@@ -288,19 +275,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
         } else
           ok = true;
 
-<<<<<<< HEAD
-        switch (node->GetContent(g, buf, sizeof(buf))) {
-          case RC_INFO:
-            PushWarning(g, txmp);
-          case RC_OK:
-            break;
-          default:
-            goto err;
-          } // enswitch rc
-
-=======
         node->GetContent(g, buf, sizeof(buf));
->>>>>>> 10.1
       } // endif atp;
 
       xcol->Len = strlen(buf);
