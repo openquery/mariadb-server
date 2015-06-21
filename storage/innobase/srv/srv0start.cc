@@ -914,7 +914,7 @@ open_or_create_data_files(
 #ifdef UNIV_LOG_ARCHIVE
 				min_arch_log_no, max_arch_log_no,
 #endif /* UNIV_LOG_ARCHIVE */
-				min_flushed_lsn, max_flushed_lsn);
+				min_flushed_lsn, max_flushed_lsn, ULINT_UNDEFINED, &crypt_data);
 
 			/* If first page is valid, don't overwrite DB.
 			It prevents overwriting DB when mysql_install_db

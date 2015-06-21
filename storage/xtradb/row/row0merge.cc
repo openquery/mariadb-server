@@ -1314,6 +1314,7 @@ row_merge_read_clustered_index(
 	os_event_t		fts_parallel_sort_event = NULL;
 	ibool			fts_pll_sort = FALSE;
 	ib_int64_t		sig_count = 0;
+	mem_heap_t*		conv_heap = NULL;
 
 	float 			curr_progress;
 	ib_int64_t		read_rows = 0;
