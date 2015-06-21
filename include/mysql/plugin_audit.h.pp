@@ -112,7 +112,6 @@ size_t my_sha1_context_size();
 void my_sha1_init(void *context);
 void my_sha1_input(void *context, const unsigned char *buf, size_t len);
 void my_sha1_result(void *context, unsigned char *digest);
-#include <mysql/service_md5.h>
 extern struct my_md5_service_st {
   void (*my_md5_type)(unsigned char*, const char*, size_t);
   void (*my_md5_multi_type)(unsigned char*, ...);
@@ -127,7 +126,6 @@ size_t my_md5_context_size();
 void my_md5_init(void *context);
 void my_md5_input(void *context, const unsigned char *buf, size_t len);
 void my_md5_result(void *context, unsigned char *digest);
-#include <mysql/service_logger.h>
 typedef struct logger_handle_st LOGGER_HANDLE;
 extern struct logger_service_st {
   void (*logger_init_mutexes)();
@@ -172,7 +170,6 @@ void thd_inc_error_row(void* thd);
 char *thd_get_error_context_description(void* thd,
                                         char *buffer, unsigned int length,
                                         unsigned int max_query_length);
-#include <mysql/service_thd_specifics.h>
 typedef int MYSQL_THD_KEY_T;
 extern struct thd_specifics_service_st {
   int (*thd_key_create_func)(MYSQL_THD_KEY_T *key);
@@ -184,7 +181,6 @@ int thd_key_create(MYSQL_THD_KEY_T *key);
 void thd_key_delete(MYSQL_THD_KEY_T *key);
 void* thd_getspecific(void* thd, MYSQL_THD_KEY_T key);
 int thd_setspecific(void* thd, MYSQL_THD_KEY_T key, void *value);
-#include <mysql/service_encryption.h>
 typedef int (*encrypt_decrypt_func)(const unsigned char* src, unsigned int slen,
                                     unsigned char* dst, unsigned int* dlen,
                                     const unsigned char* key, unsigned int klen,
@@ -200,7 +196,6 @@ struct encryption_service_st {
   encrypt_decrypt_func encryption_decrypt_func;
 };
 extern struct encryption_service_st encryption_handler;
-#include <mysql/service_encryption_scheme.h>
 struct st_encryption_scheme_key {
   unsigned int version;
   unsigned char key[16];
