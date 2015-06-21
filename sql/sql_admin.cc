@@ -250,7 +250,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       Now we should be able to open the partially repaired table
       to finish the repair in the handler later on.
     */
-    if (open_table(thd, table_list, thd->mem_root, &ot_ctx))
+    if (open_table(thd, table_list, &ot_ctx))
     {
       error= send_check_errmsg(thd, table_list, "repair",
                                "Failed to open partially repaired table");
@@ -978,20 +978,13 @@ send_result_message:
     {
       char buf[MYSQL_ERRMSG_SIZE];
       size_t length;
+      const char *what_to_upgrade= table->view ? "VIEW" :
+          table->table->file->ha_table_flags() & HA_CAN_REPAIR ? "TABLE" : 0;
 
       protocol->store(STRING_WITH_LEN("error"), system_charset_info);
-#if MYSQL_VERSION_ID > 100104
-#error fix the error message to take TABLE or VIEW as an argument
-#else
-      if (table->view)
-        length= my_snprintf(buf, sizeof(buf),
-                            "Upgrade required. Please do \"REPAIR VIEW %`s\" or dump/reload to fix it!",
-                            table->table_name);
-      else
-#endif
-      if (table->table->file->ha_table_flags() & HA_CAN_REPAIR || table->view)
+      if (what_to_upgrade)
         length= my_snprintf(buf, sizeof(buf), ER(ER_TABLE_NEEDS_UPGRADE),
-                            table->table_name);
+                            what_to_upgrade, table->table_name);
       else
         length= my_snprintf(buf, sizeof(buf), ER(ER_TABLE_NEEDS_REBUILD),
                             table->table_name);
@@ -1176,6 +1169,8 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
                          FALSE, UINT_MAX, FALSE))
     goto error;
   thd->enable_slow_log= opt_log_slow_admin_statements;
+  WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL);
+
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt,
                          "analyze", lock_type, 1, 0, 0, 0,
                          &handler::ha_analyze, 0);
@@ -1230,6 +1225,7 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
   if (check_table_access(thd, SELECT_ACL | INSERT_ACL, first_table,
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
+  WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL)
   thd->enable_slow_log= opt_log_slow_admin_statements;
   res= (specialflag & SPECIAL_NO_NEW_FUNC) ?
     mysql_recreate_table(thd, first_table, true) :
@@ -1263,6 +1259,7 @@ bool Sql_cmd_repair_table::execute(THD *thd)
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
   thd->enable_slow_log= opt_log_slow_admin_statements;
+  WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL)
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "repair",
                          TL_WRITE, 1,
                          MY_TEST(m_lex->check_opt.sql_flags & TT_USEFRM),

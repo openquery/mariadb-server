@@ -227,11 +227,6 @@ bool partition_info::set_partition_bitmaps(TABLE_LIST *table_list)
   {
     if (table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)
     {
-        /*
-          Don't allow PARTITION () clause on a NDB tables yet.
-          TODO: Add partition name handling to NDB/partition_info.
-          which is currently ha_partition specific.
-        */
         my_error(ER_PARTITION_CLAUSE_ON_NONPARTITIONED, MYF(0));
         DBUG_RETURN(true);
     }
@@ -287,7 +282,7 @@ bool partition_info::can_prune_insert(THD* thd,
   DBUG_ENTER("partition_info::can_prune_insert");
 
   if (table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)
-    DBUG_RETURN(false); /* Should not insert prune NDB tables */
+    DBUG_RETURN(false);
 
   /*
     If under LOCK TABLES pruning will skip start_stmt instead of external_lock
@@ -1111,14 +1106,12 @@ static bool check_engine_condition(partition_element *p_elem,
     Current check verifies only that all handlers are the same.
     Later this check will be more sophisticated.
     (specified partition handler ) specified table handler
-    (NDB, NDB) NDB           OK
     (MYISAM, MYISAM) -       OK
     (MYISAM, -)      -       NOT OK
     (MYISAM, -)    MYISAM    OK
     (- , MYISAM)   -         NOT OK
     (- , -)        MYISAM    OK
     (-,-)          -         OK
-    (NDB, MYISAM) *          NOT OK
 */
 
 bool partition_info::check_engine_mix(handlerton *engine_type,
@@ -2054,8 +2047,7 @@ bool partition_info::set_up_charset_field_preps()
     i= 0;
     while ((field= *(ptr++)))
     {
-      uchar *field_buf;
-      LINT_INIT(field_buf);
+      uchar *UNINIT_VAR(field_buf);
 
       if (!field_is_partition_charset(field))
         continue;

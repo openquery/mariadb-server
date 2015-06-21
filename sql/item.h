@@ -33,6 +33,7 @@ C_MODE_START
 #include <ma_dyncol.h>
 C_MODE_END
 
+#ifndef DBUG_OFF
 static inline
 bool trace_unsupported_func(const char *where, const char *processor_name)
 {
@@ -43,6 +44,9 @@ bool trace_unsupported_func(const char *where, const char *processor_name)
   DBUG_PRINT("info", ("%s", buff));
   DBUG_RETURN(TRUE);
 }
+#else
+#define trace_unsupported_func(X,Y) TRUE
+#endif
 
 static inline
 bool trace_unsupported_by_check_vcol_func_processor(const char *where)
@@ -55,6 +59,11 @@ struct TABLE_LIST;
 void item_init(void);			/* Init item functions */
 class Item_field;
 class user_var_entry;
+class JOIN;
+struct KEY_FIELD;
+struct SARGABLE_PARAM;
+class RANGE_OPT_PARAM;
+class SEL_TREE;
 
 
 static inline uint32
@@ -114,7 +123,7 @@ public:
     derivation= derivation_arg;
     set_repertoire_from_charset(collation_arg);
   }
-  void set(DTCollation &dt)
+  void set(const DTCollation &dt)
   { 
     collation= dt.collation;
     derivation= dt.derivation;
@@ -170,121 +179,6 @@ public:
                                         (uchar *) s->ptr(), s->length(),
                                         (uchar *) t->ptr(), t->length(), 0);
   }
-};
-
-/*************************************************************************/
-/*
-  A framework to easily handle different return types for hybrid items
-  (hybrid item is an item whose operand can be of any type, e.g. integer,
-  real, decimal).
-*/
-
-struct Hybrid_type_traits;
-
-struct Hybrid_type
-{
-  longlong integer;
-
-  double real;
-  /*
-    Use two decimal buffers interchangeably to speed up += operation
-    which has no native support in decimal library.
-    Hybrid_type+= arg is implemented as dec_buf[1]= dec_buf[0] + arg.
-    The third decimal is used as a handy temporary storage.
-  */
-  my_decimal dec_buf[3];
-  int used_dec_buf_no;
-
-  /*
-    Traits moved to a separate class to
-      a) be able to easily change object traits in runtime
-      b) they work as a differentiator for the union above
-  */
-  const Hybrid_type_traits *traits;
-
-  Hybrid_type() {}
-  /* XXX: add traits->copy() when needed */
-  Hybrid_type(const Hybrid_type &rhs) :traits(rhs.traits) {}
-};
-
-
-/* Hybryd_type_traits interface + default implementation for REAL_RESULT */
-
-struct Hybrid_type_traits
-{
-  virtual Item_result type() const { return REAL_RESULT; }
-
-  virtual void
-  fix_length_and_dec(Item *item, Item *arg) const;
-
-  /* Hybrid_type operations. */
-  virtual void set_zero(Hybrid_type *val) const { val->real= 0.0; }
-  virtual void add(Hybrid_type *val, Field *f) const
-  { val->real+= f->val_real(); }
-  virtual void div(Hybrid_type *val, ulonglong u) const
-  { val->real/= ulonglong2double(u); }
-
-  virtual longlong val_int(Hybrid_type *val, bool unsigned_flag) const
-  { return (longlong) rint(val->real); }
-  virtual double val_real(Hybrid_type *val) const { return val->real; }
-  virtual my_decimal *val_decimal(Hybrid_type *val, my_decimal *buf) const;
-  virtual String *val_str(Hybrid_type *val, String *buf, uint8 decimals) const;
-  static const Hybrid_type_traits *instance();
-  Hybrid_type_traits() {}
-  virtual ~Hybrid_type_traits() {}
-};
-
-
-struct Hybrid_type_traits_decimal: public Hybrid_type_traits
-{
-  virtual Item_result type() const { return DECIMAL_RESULT; }
-
-  virtual void
-  fix_length_and_dec(Item *arg, Item *item) const;
-
-  /* Hybrid_type operations. */
-  virtual void set_zero(Hybrid_type *val) const;
-  virtual void add(Hybrid_type *val, Field *f) const;
-  virtual void div(Hybrid_type *val, ulonglong u) const;
-
-  virtual longlong val_int(Hybrid_type *val, bool unsigned_flag) const;
-  virtual double val_real(Hybrid_type *val) const;
-  virtual my_decimal *val_decimal(Hybrid_type *val, my_decimal *buf) const
-  { return &val->dec_buf[val->used_dec_buf_no]; }
-  virtual String *val_str(Hybrid_type *val, String *buf, uint8 decimals) const;
-  static const Hybrid_type_traits_decimal *instance();
-  Hybrid_type_traits_decimal() {};
-};
-
-
-struct Hybrid_type_traits_integer: public Hybrid_type_traits
-{
-  virtual Item_result type() const { return INT_RESULT; }
-
-  virtual void
-  fix_length_and_dec(Item *arg, Item *item) const;
-
-  /* Hybrid_type operations. */
-  virtual void set_zero(Hybrid_type *val) const
-  { val->integer= 0; }
-  virtual void add(Hybrid_type *val, Field *f) const
-  { val->integer+= f->val_int(); }
-  virtual void div(Hybrid_type *val, ulonglong u) const
-  { val->integer/= (longlong) u; }
-
-  virtual longlong val_int(Hybrid_type *val, bool unsigned_flag) const
-  { return val->integer; }
-  virtual double val_real(Hybrid_type *val) const
-  { return (double) val->integer; }
-  virtual my_decimal *val_decimal(Hybrid_type *val, my_decimal *buf) const
-  {
-    int2my_decimal(E_DEC_FATAL_ERROR, val->integer, 0, &val->dec_buf[2]);
-    return &val->dec_buf[2];
-  }
-  virtual String *val_str(Hybrid_type *val, String *buf, uint8 decimals) const
-  { buf->set(val->integer, &my_charset_bin); return buf;}
-  static const Hybrid_type_traits_integer *instance();
-  Hybrid_type_traits_integer() {};
 };
 
 
@@ -534,6 +428,70 @@ public:
   { return NULL; }
 };
 
+/**
+  This is used for items in the query that needs to be rewritten
+  before binlogging
+
+  At the moment this applies to Item_param and Item_splocal
+*/
+class Rewritable_query_parameter
+{
+  public:
+  /*
+    Offset inside the query text.
+    Value of 0 means that this object doesn't have to be replaced
+    (for example SP variables in control statements)
+  */
+  uint pos_in_query;
+
+  /*
+    Byte length of parameter name in the statement.  This is not
+    Item::name_length because name_length contains byte length of UTF8-encoded
+    name, but the query string is in the client charset.
+  */
+  uint len_in_query;
+
+  bool limit_clause_param;
+
+  Rewritable_query_parameter(uint pos_in_q= 0, uint len_in_q= 0)
+    : pos_in_query(pos_in_q), len_in_query(len_in_q),
+      limit_clause_param(false)
+  { }
+
+  virtual ~Rewritable_query_parameter() { }
+
+  virtual bool append_for_log(THD *thd, String *str) = 0;
+};
+
+class Copy_query_with_rewrite
+{
+  THD *thd;
+  const char *src;
+  size_t src_len, from;
+  String *dst;
+
+  bool copy_up_to(size_t bytes)
+  {
+    DBUG_ASSERT(bytes >= from);
+    return dst->append(src + from, bytes - from);
+  }
+
+public:
+
+  Copy_query_with_rewrite(THD *t, const char *s, size_t l, String *d)
+    :thd(t), src(s), src_len(l), from(0), dst(d) { }
+
+  bool append(Rewritable_query_parameter *p)
+  {
+    if (copy_up_to(p->pos_in_query) || p->append_for_log(thd, dst))
+      return true;
+    from= p->pos_in_query + p->len_in_query;
+    return false;
+  }
+
+  bool finalize()
+  { return copy_up_to(src_len); }
+};
 
 struct st_dyncall_create_def
 {
@@ -576,8 +534,65 @@ class COND_EQUAL;
 class st_select_lex_unit;
 
 class Item_func_not;
+class Item_splocal;
 
-class Item {
+/**
+  String_copier that honors the current sql_mode (strict vs non strict)
+  and can send warnings.
+*/
+class String_copier_for_item: public String_copier
+{
+  THD *m_thd;
+public:
+  bool copy_with_warn(CHARSET_INFO *dstcs, String *dst,
+                      CHARSET_INFO *srccs, const char *src,
+                      uint32 src_length, uint32 nchars);
+  String_copier_for_item(THD *thd): m_thd(thd) { }
+};
+
+
+/**
+  A class to store type attributes for the standard data types.
+  Does not include attributes for the extended data types
+  such as ENUM, SET, GEOMETRY.
+*/
+class Type_std_attributes
+{
+public:
+  DTCollation collation;
+  uint decimals;
+  /*
+    The maximum value length in characters multiplied by collation->mbmaxlen.
+    Almost always it's the maximum value length in bytes.
+  */
+  uint32 max_length;
+  bool unsigned_flag;
+  Type_std_attributes()
+   :collation(&my_charset_bin, DERIVATION_COERCIBLE),
+    decimals(0), max_length(0), unsigned_flag(false)
+  { }
+  Type_std_attributes(const Type_std_attributes *other)
+   :collation(other->collation),
+    decimals(other->decimals),
+    max_length(other->max_length),
+    unsigned_flag(other->unsigned_flag)
+  { }
+  void set(const Type_std_attributes *other)
+  {
+    *this= *other;
+  }
+  void set(const Field *field)
+  {
+    decimals= field->decimals();
+    max_length= field->field_length;
+    collation.set(field->charset());
+    unsigned_flag= MY_TEST(field->flags & UNSIGNED_FLAG);
+  }
+};
+
+
+class Item: public Type_std_attributes
+{
   Item(const Item &);			/* Prevent use of these */
   void operator=(Item &);
   /**
@@ -646,26 +661,19 @@ public:
    */
   Item *next;
   /*
-    The maximum value length in characters multiplied by collation->mbmaxlen.
-    Almost always it's the maximum value length in bytes.
-  */
-  uint32 max_length;
-  /*
     TODO: convert name and name_length fields into LEX_STRING to keep them in
     sync (see bug #11829681/60295 etc). Then also remove some strlen(name)
     calls.
   */
   uint name_length;                     /* Length of name */
-  uint decimals;
   int8 marker;
   bool maybe_null;			/* If item may be null */
   bool in_rollup;                       /* If used in GROUP BY list
                                            of a query with ROLLUP */ 
   bool null_value;			/* if item is null */
-  bool unsigned_flag;
   bool with_sum_func;                   /* True if item contains a sum func */
   /**
-    True if any item except Item_sum_func contains a field. Set during parsing.
+    True if any item except Item_sum contains a field. Set during parsing.
   */
   bool with_field;
   bool fixed;                           /* If item fixed with fix_fields */
@@ -674,7 +682,6 @@ public:
   bool with_subselect;                  /* If this item is a subselect or some
                                            of its arguments is or contains a
                                            subselect */
-  DTCollation collation;
   Item_result cmp_context;              /* Comparison context */
   // alloc & destruct is done as start of select using sql_alloc
   Item();
@@ -1125,6 +1132,42 @@ public:
   void print_item_w_name(String *, enum_query_type query_type);
   void print_value(String *);
   virtual void update_used_tables() {}
+  virtual COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                                  bool link_item_fields,
+                                  COND_EQUAL **cond_equal_ref)
+  {
+    update_used_tables();
+    DBUG_ASSERT(!cond_equal_ref || !cond_equal_ref[0]);
+    return this;
+  }
+  virtual COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
+                                bool top_level);
+  virtual void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                              uint *and_level,
+                              table_map usable_tables,
+                              SARGABLE_PARAM **sargables)
+  {
+    return;
+  }
+   /*
+     Make a select tree for all keys in a condition or a condition part
+     @param param         Context
+     @param cond_ptr[OUT] Store a replacement item here if the condition
+                          can be simplified, e.g.:
+                            WHERE part1 OR part2 OR part3
+                          with one of the partN evalutating to SEL_TREE::ALWAYS.
+   */
+   virtual SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
+  /*
+    Checks whether the item is:
+    - a simple equality (field=field_item or field=constant_item), or
+    - a row equality
+    and form multiple equality predicates.
+  */
+  virtual bool check_equality(THD *thd, COND_EQUAL *cond, List<Item> *eq_list)
+  {
+    return false;
+  }
   virtual void split_sum_func(THD *thd, Item **ref_pointer_array,
                               List<Item> &fields) {}
   /* Called for items that really have to be split */
@@ -1142,7 +1185,7 @@ public:
     The method allows to determine nullness of a complex expression 
     without fully evaluating it, instead of calling val/result*() then 
     checking null_value. Used in Item_func_isnull/Item_func_isnotnull
-    and Item_sum_count/Item_sum_count_distinct.
+    and Item_sum_count.
     Any new item which can be NULL must implement this method.
   */
   virtual bool is_null() { return 0; }
@@ -1169,7 +1212,7 @@ public:
   */
   virtual void set_result_field(Field *field) {}
   virtual bool is_result_field() { return 0; }
-  virtual bool is_bool_func() { return 0; }
+  virtual bool is_bool_type() { return false; }
   virtual void save_in_result_field(bool no_conversions) {}
   /*
     set value of aggregate function in case of no rows for grouping were found
@@ -1182,7 +1225,7 @@ public:
   virtual Item *get_tmp_table_item(THD *thd) { return copy_or_same(thd); }
 
   static CHARSET_INFO *default_charset();
-  virtual CHARSET_INFO *compare_collation() { return NULL; }
+  virtual CHARSET_INFO *compare_collation() const { return NULL; }
 
   /*
     For backward compatibility, to make numeric
@@ -1498,7 +1541,7 @@ public:
         SELECT * FROM t1 WHERE datetime_field = '2010-01-01';
       to
         SELECT * FROM t1 WHERE CONVERT(datetime_field USING cs) = '2010-01-01';
-      
+
       TODO: avoid conversion of any values with
       repertoire ASCII and 7bit-ASCII-compatible,
       not only numeric/datetime origin.
@@ -1525,7 +1568,9 @@ public:
     delete this;
   }
 
-  virtual bool is_splocal() { return 0; } /* Needed for error checking */
+  virtual Item_splocal *get_item_splocal() { return 0; }
+  virtual Rewritable_query_parameter *get_rewritable_query_parameter()
+  { return 0; }
 
   /*
     Return Settable_routine_parameter interface of the Item.  Return 0
@@ -1874,7 +1919,8 @@ inline bool Item_sp_variable::send(Protocol *protocol, String *str)
 *****************************************************************************/
 
 class Item_splocal :public Item_sp_variable,
-                    private Settable_routine_parameter
+                    private Settable_routine_parameter,
+                    public Rewritable_query_parameter
 {
   uint m_var_idx;
 
@@ -1882,38 +1928,9 @@ class Item_splocal :public Item_sp_variable,
   Item_result m_result_type;
   enum_field_types m_field_type;
 public:
-  /*
-    If this variable is a parameter in LIMIT clause.
-    Used only during NAME_CONST substitution, to not append
-    NAME_CONST to the resulting query and thus not break
-    the slave.
-  */
-  bool limit_clause_param;
-  /* 
-    Position of this reference to SP variable in the statement (the
-    statement itself is in sp_instr_stmt::m_query).
-    This is valid only for references to SP variables in statements,
-    excluding DECLARE CURSOR statement. It is used to replace references to SP
-    variables with NAME_CONST calls when putting statements into the binary
-    log.
-    Value of 0 means that this object doesn't corresponding to reference to
-    SP variable in query text.
-  */
-  uint pos_in_query;
-  /*
-    Byte length of SP variable name in the statement (see pos_in_query).
-    The value of this field may differ from the name_length value because
-    name_length contains byte length of UTF8-encoded item name, but
-    the query string (see sp_instr_stmt::m_query) is currently stored with
-    a charset from the SET NAMES statement.
-  */
-  uint len_in_query;
-
   Item_splocal(const LEX_STRING &sp_var_name, uint sp_var_idx,
                enum_field_types sp_var_type,
                uint pos_in_q= 0, uint len_in_q= 0);
-
-  bool is_splocal() { return 1; } /* Needed for error checking */
 
   Item *this_item();
   const Item *this_item() const;
@@ -1934,10 +1951,15 @@ private:
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
 
 public:
+  Item_splocal *get_item_splocal() { return this; }
+
+  Rewritable_query_parameter *get_rewritable_query_parameter()
+  { return this; }
+
   Settable_routine_parameter *get_settable_routine_parameter()
-  {
-    return this;
-  }
+  { return this; }
+
+  bool append_for_log(THD *thd, String *str);
 };
 
 /*****************************************************************************
@@ -2121,7 +2143,33 @@ public:
 #define NO_CACHED_FIELD_INDEX ((uint)(-1))
 
 class st_select_lex;
-class Item_ident :public Item
+
+
+class Item_result_field :public Item	/* Item with result field */
+{
+public:
+  Field *result_field;				/* Save result here */
+  Item_result_field() :result_field(0) {}
+  // Constructor used for Item_sum/Item_cond_and/or (see Item comment)
+  Item_result_field(THD *thd, Item_result_field *item):
+    Item(thd, item), result_field(item->result_field)
+  {}
+  ~Item_result_field() {}			/* Required with gcc 2.95 */
+  Field *get_tmp_table_field() { return result_field; }
+  Field *tmp_table_field(TABLE *t_arg) { return result_field; }
+  table_map used_tables() const { return true; }
+  void set_result_field(Field *field) { result_field= field; }
+  bool is_result_field() { return true; }
+  void save_in_result_field(bool no_conversions)
+  {
+    save_in_field(result_field, no_conversions);
+  }
+  void cleanup();
+  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
+};
+
+
+class Item_ident :public Item_result_field
 {
 protected:
   /* 
@@ -2217,7 +2265,7 @@ class Item_field :public Item_ident
 protected:
   void set_field(Field *field);
 public:
-  Field *field,*result_field;
+  Field *field;
   Item_equal *item_equal;
   bool no_const_subst;
   /*
@@ -2227,7 +2275,7 @@ public:
   uint have_privileges;
   /* field need any privileges (for VIEW creation) */
   bool any_privileges;
-  Item_field(Name_resolution_context *context_arg,
+  Item_field(THD *thd, Name_resolution_context *context_arg,
              const char *db_arg,const char *table_name_arg,
 	     const char *field_name_arg);
   /*
@@ -2286,8 +2334,6 @@ public:
     return MONOTONIC_STRICT_INCREASING;
   }
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
-  Field *get_tmp_table_field() { return result_field; }
-  Field *tmp_table_field(TABLE *t_arg) { return result_field; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_date_result(MYSQL_TIME *ltime,ulonglong fuzzydate);
   bool is_null() { return field->is_null(); }
@@ -2313,6 +2359,30 @@ public:
   {
     update_table_bitmaps();
   }
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref)
+  {
+    /*
+      normilize_cond() replaced all conditions of type
+         WHERE/HAVING field
+      to:
+        WHERE/HAVING field<>0
+      By the time of a build_equal_items() call, all such conditions should
+      already be replaced. No Item_field are possible.
+      Note, some Item_field derivants are still possible.
+      Item_insert_value:
+        SELECT * FROM t1 WHERE VALUES(a);
+      Item_default_value:
+        SELECT * FROM t1 WHERE DEFAULT(a);
+    */
+    DBUG_ASSERT(type() != FIELD_ITEM);
+    return Item_ident::build_equal_items(thd, inherited, link_item_fields,
+                                         cond_equal_ref);
+  }
+  bool is_result_field() { return false; }
+  void set_result_field(Field *field) {}
+  void save_in_result_field(bool no_conversions) { }
   Item *get_tmp_table_item(THD *thd);
   bool collect_item_field_processor(uchar * arg);
   bool add_field_to_set_processor(uchar * arg);
@@ -2322,7 +2392,6 @@ public:
   bool register_field_in_bitmap(uchar *arg);
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
   bool vcol_in_partition_func_processor(uchar *bool_arg);
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool enumerate_field_refs_processor(uchar *arg);
   bool update_table_bitmaps_processor(uchar *arg);
   void cleanup();
@@ -2411,7 +2480,8 @@ public:
 /* Item represents one placeholder ('?') of prepared statement */
 
 class Item_param :public Item_basic_value,
-                  private Settable_routine_parameter
+                  private Settable_routine_parameter,
+                  public Rewritable_query_parameter
 {
 public:
   enum enum_item_param_state
@@ -2471,11 +2541,6 @@ public:
     supply for this placeholder in mysql_stmt_execute.
   */
   enum enum_field_types param_type;
-  /*
-    Offset of placeholder inside statement text. Used to create
-    no-placeholders version of this statement for the binary log.
-  */
-  uint pos_in_query;
 
   Item_param(uint pos_in_query_arg);
 
@@ -2541,17 +2606,16 @@ public:
     Otherwise return FALSE.
   */
   bool eq(const Item *item, bool binary_cmp) const;
-  /** Item is a argument to a limit clause. */
-  bool limit_clause_param;
   void set_param_type_and_swap_value(Item_param *from);
 
-private:
-  virtual inline Settable_routine_parameter *
-    get_settable_routine_parameter()
-  {
-    return this;
-  }
+  Rewritable_query_parameter *get_rewritable_query_parameter()
+  { return this; }
+  Settable_routine_parameter *get_settable_routine_parameter()
+  { return this; }
 
+  bool append_for_log(THD *thd, String *str);
+
+private:
   virtual bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
 
   virtual void set_out_param_info(Send_field *info);
@@ -2679,7 +2743,6 @@ class Item_float :public Item_num
   char *presentation;
 public:
   double value;
-  // Item_real() :value(0) {}
   Item_float(const char *str_arg, uint length);
   Item_float(const char *str,double val_arg,uint decimal_par,uint length)
     :value(val_arg)
@@ -2746,22 +2809,7 @@ public:
 
 class Item_string :public Item_basic_constant
 {
-  bool m_cs_specified;
 protected:
-  /**
-    Set the value of m_cs_specified attribute.
-
-    m_cs_specified attribute shows whether character-set-introducer was
-    explicitly specified in the original query for this text literal or
-    not. The attribute makes sense (is used) only for views.
-
-    This operation is to be called from the parser during parsing an input
-    query.
-  */
-  inline void set_cs_specified(bool cs_specified)
-  {
-    m_cs_specified= cs_specified;
-  }
   void fix_from_value(Derivation dv, const Metadata metadata)
   {
     fix_charset_and_length_from_str_value(dv, metadata);
@@ -2776,7 +2824,6 @@ protected:
 protected:
   /* Just create an item and do not fill string representation */
   Item_string(CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE)
-    : m_cs_specified(FALSE)
   {
     collation.set(cs, dv);
     max_length= 0;
@@ -2785,24 +2832,30 @@ protected:
     fixed= 1;
   }
 public:
+  Item_string(CHARSET_INFO *csi, const char *str_arg, uint length_arg)
+  {
+    collation.set(csi, DERIVATION_COERCIBLE);
+    set_name(NULL, 0, system_charset_info);
+    decimals= NOT_FIXED_DEC;
+    fixed= 1;
+    str_value.copy(str_arg, length_arg, csi);
+    max_length= str_value.numchars() * csi->mbmaxlen;
+  }
   // Constructors with the item name set from its value
   Item_string(const char *str, uint length, CHARSET_INFO *cs,
               Derivation dv, uint repertoire)
-    : m_cs_specified(FALSE)
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_and_set_name_from_value(dv, Metadata(&str_value, repertoire));
   }
   Item_string(const char *str, uint length,
               CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE)
-    : m_cs_specified(FALSE)
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_and_set_name_from_value(dv, Metadata(&str_value));
   }
   Item_string(const String *str, CHARSET_INFO *tocs, uint *conv_errors,
               Derivation dv, uint repertoire)
-    :m_cs_specified(false)
   {
     if (str_value.copy(str, tocs, conv_errors))
       str_value.set("", 0, tocs); // EOM ?
@@ -2812,7 +2865,6 @@ public:
   // Constructors with an externally provided item name
   Item_string(const char *name_par, const char *str, uint length,
               CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE)
-    :m_cs_specified(false)
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_from_value(dv, Metadata(&str_value));
@@ -2820,7 +2872,6 @@ public:
   }
   Item_string(const char *name_par, const char *str, uint length,
               CHARSET_INFO *cs, Derivation dv, uint repertoire)
-    :m_cs_specified(false)
   {
     str_value.set_or_copy_aligned(str, length, cs);
     fix_from_value(dv, Metadata(&str_value, repertoire));
@@ -2884,9 +2935,9 @@ public:
       the original query.
       @retval FALSE otherwise.
   */
-  inline bool is_cs_specified() const
+  virtual bool is_cs_specified() const
   {
-    return m_cs_specified;
+    return false;
   }
 
   String *check_well_formed_result(bool send_error)
@@ -2920,6 +2971,7 @@ public:
     }
     return MYSQL_TYPE_STRING; // Not a temporal literal
   }
+
 };
 
 
@@ -2928,14 +2980,14 @@ class Item_string_with_introducer :public Item_string
 public:
   Item_string_with_introducer(const char *str, uint length, CHARSET_INFO *cs)
     :Item_string(str, length, cs)
-  {
-    set_cs_specified(true);
-  }
+  { }
   Item_string_with_introducer(const char *name,
                               const char *str, uint length, CHARSET_INFO *tocs)
     :Item_string(name, str, length, tocs)
+  { }
+  virtual bool is_cs_specified() const
   {
-    set_cs_specified(true);
+    return true;
   }
 };
 
@@ -3310,28 +3362,167 @@ public:
 
 
 
-class Item_result_field :public Item	/* Item with result field */
+/**
+  Array of items, e.g. function or aggerate function arguments.
+*/
+class Item_args
+{
+protected:
+  Item **args, *tmp_arg[2];
+  void set_arguments(List<Item> &list);
+  bool walk_args(Item_processor processor, bool walk_subquery, uchar *arg)
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->walk(processor, walk_subquery, arg))
+        return true;
+    }
+    return false;
+  }
+  bool transform_args(Item_transformer transformer, uchar *arg);
+public:
+  uint arg_count;
+  Item_args(void)
+    :args(NULL), arg_count(0)
+  { }
+  Item_args(Item *a)
+    :args(tmp_arg), arg_count(1)
+  {
+    args[0]= a;
+  }
+  Item_args(Item *a, Item *b)
+    :args(tmp_arg), arg_count(2)
+  {
+    args[0]= a; args[1]= b;
+  }
+  Item_args(Item *a, Item *b, Item *c)
+  {
+    arg_count= 0;
+    if ((args= (Item**) sql_alloc(sizeof(Item*) * 3)))
+    {
+      arg_count= 3;
+      args[0]= a; args[1]= b; args[2]= c;
+    }
+  }
+  Item_args(Item *a, Item *b, Item *c, Item *d)
+  {
+    arg_count= 0;
+    if ((args= (Item**) sql_alloc(sizeof(Item*) * 4)))
+    {
+      arg_count= 4;
+      args[0]= a; args[1]= b; args[2]= c; args[3]= d;
+    }
+  }
+  Item_args(Item *a, Item *b, Item *c, Item *d, Item* e)
+  {
+    arg_count= 5;
+    if ((args= (Item**) sql_alloc(sizeof(Item*) * 5)))
+    {
+      arg_count= 5;
+      args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
+    }
+  }
+  Item_args(List<Item> &list)
+  {
+    set_arguments(list);
+  }
+  Item_args(THD *thd, const Item_args *other);
+  inline Item **arguments() const { return args; }
+  inline uint argument_count() const { return arg_count; }
+  inline void remove_arguments() { arg_count=0; }
+};
+
+
+class Used_tables_and_const_cache
 {
 public:
-  Field *result_field;				/* Save result here */
-  Item_result_field() :result_field(0) {}
-  // Constructor used for Item_sum/Item_cond_and/or (see Item comment)
-  Item_result_field(THD *thd, Item_result_field *item):
-    Item(thd, item), result_field(item->result_field)
-  {}
-  ~Item_result_field() {}			/* Required with gcc 2.95 */
-  Field *get_tmp_table_field() { return result_field; }
-  Field *tmp_table_field(TABLE *t_arg) { return result_field; }
-  table_map used_tables() const { return 1; }
-  virtual void fix_length_and_dec()=0;
-  void set_result_field(Field *field) { result_field= field; }
-  bool is_result_field() { return 1; }
-  void save_in_result_field(bool no_conversions)
+  /*
+    In some cases used_tables_cache is not what used_tables() return
+    so the method should be used where one need used tables bit map
+    (even internally in Item_func_* code).
+  */
+  table_map used_tables_cache;
+  bool const_item_cache;
+
+  Used_tables_and_const_cache()
+   :used_tables_cache(0),
+    const_item_cache(true)
+  { }
+  Used_tables_and_const_cache(const Used_tables_and_const_cache *other)
+   :used_tables_cache(other->used_tables_cache),
+    const_item_cache(other->const_item_cache)
+  { }
+  void used_tables_and_const_cache_init()
   {
-    save_in_field(result_field, no_conversions);
+    used_tables_cache= 0;
+    const_item_cache= true;
   }
-  void cleanup();
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
+  void used_tables_and_const_cache_copy(const Used_tables_and_const_cache *c)
+  {
+    *this= *c;
+  }
+  void used_tables_and_const_cache_join(const Item *item)
+  {
+    used_tables_cache|= item->used_tables();
+    const_item_cache&= item->const_item();
+  }
+  /*
+    Call update_used_tables() for all "argc" items in the array "argv"
+    and join with the current cache.
+    "this" must be initialized with a constructor or
+    re-initialized with used_tables_and_const_cache_init().
+  */
+  void used_tables_and_const_cache_update_and_join(uint argc, Item **argv)
+  {
+    for (uint i=0 ; i < argc ; i++)
+    {
+      argv[i]->update_used_tables();
+      used_tables_and_const_cache_join(argv[i]);
+    }
+  }
+  /*
+    Call update_used_tables() for all items in the list
+    and join with the current cache.
+    "this" must be initialized with a constructor or
+    re-initialized with used_tables_and_const_cache_init().
+  */
+  void used_tables_and_const_cache_update_and_join(List<Item> &list)
+  {
+    List_iterator_fast<Item> li(list);
+    Item *item;
+    while ((item=li++))
+    {
+      item->update_used_tables();
+      used_tables_and_const_cache_join(item);
+    }
+  }
+};
+
+
+/**
+  An abstract class representing common features of
+  regular functions and aggregate functions.
+*/
+class Item_func_or_sum: public Item_result_field, public Item_args
+{
+public:
+  Item_func_or_sum() :Item_args() {}
+  Item_func_or_sum(Item *a) :Item_args(a) { }
+  Item_func_or_sum(Item *a, Item *b) :Item_args(a, b) { }
+  Item_func_or_sum(Item *a, Item *b, Item *c) :Item_args(a, b, c) { }
+  Item_func_or_sum(Item *a, Item *b, Item *c, Item *d)
+    :Item_args(a, b, c, d) { }
+  Item_func_or_sum(Item *a, Item *b, Item *c, Item *d, Item *e)
+    :Item_args(a, b, c, d, e) { }
+  Item_func_or_sum(THD *thd, Item_func_or_sum *item)
+    :Item_result_field(thd, item), Item_args(thd, item) { }
+  Item_func_or_sum(List<Item> &list) :Item_args(list) { }
+  bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
+  {
+    if (walk_args(processor, walk_subquery, arg))
+      return true;
+    return (this->*processor)(arg);
+  }
   /*
     This method is used for debug purposes to print the name of an
     item to the debug log. The second use of this method is as
@@ -3341,7 +3532,7 @@ public:
     should not be used for runtime type identification, use enum
     {Sum}Functype and Item_func::functype()/Item_sum::sum_func()
     instead.
-    Added here, to the parent class of both Item_func and Item_sum_func.
+    Added here, to the parent class of both Item_func and Item_sum.
 
     NOTE: for Items inherited from Item_sum, func_name() return part of
     function name till first argument (including '(') to make difference in
@@ -3349,6 +3540,7 @@ public:
     also to make printing of items inherited from Item_sum uniform.
   */
   virtual const char *func_name() const= 0;
+  virtual void fix_length_and_dec()= 0;
 };
 
 
@@ -3358,14 +3550,13 @@ protected:
   void set_properties();
 public:
   enum Ref_Type { REF, DIRECT_REF, VIEW_REF, OUTER_REF, AGGREGATE_REF };
-  Field *result_field;			 /* Save result here */
   Item **ref;
   bool reference_trough_name;
   Item_ref(Name_resolution_context *context_arg,
            const char *db_arg, const char *table_name_arg,
            const char *field_name_arg)
     :Item_ident(context_arg, db_arg, table_name_arg, field_name_arg),
-    result_field(0), ref(0), reference_trough_name(1) {}
+    ref(0), reference_trough_name(1) {}
   /*
     This constructor is used in two scenarios:
     A) *item = NULL
@@ -3388,7 +3579,7 @@ public:
 
   /* Constructor need to process subselect with temporary tables (see Item) */
   Item_ref(THD *thd, Item_ref *item)
-    :Item_ident(thd, item), result_field(item->result_field), ref(item->ref) {}
+    :Item_ident(thd, item), ref(item->ref) {}
   enum Type type() const		{ return REF_ITEM; }
   enum Type real_type() const           { return ref ? (*ref)->type() :
                                           REF_ITEM; }
@@ -3424,9 +3615,26 @@ public:
   enum_field_types field_type() const   { return (*ref)->field_type(); }
   Field *get_tmp_table_field()
   { return result_field ? result_field : (*ref)->get_tmp_table_field(); }
+  Field *tmp_table_field(TABLE *t_arg) { return 0; } 
   Item *get_tmp_table_item(THD *thd);
   table_map used_tables() const;		
   void update_used_tables(); 
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref)
+  {
+    /*
+      normilize_cond() replaced all conditions of type
+         WHERE/HAVING field
+      to:
+        WHERE/HAVING field<>0
+      By the time of a build_equal_items() call, all such conditions should
+      already be replaced. No Item_ref referencing to Item_field are possible.
+    */
+    DBUG_ASSERT(real_type() != FIELD_ITEM);
+    return Item_ident::build_equal_items(thd, inherited, link_item_fields,
+                                         cond_equal_ref);
+  }
   bool const_item() const 
   {
     return (*ref)->const_item();
@@ -3435,8 +3643,6 @@ public:
   { 
     return depended_from ? 0 : (*ref)->not_null_tables();
   }
-  void set_result_field(Field *field)	{ result_field= field; }
-  bool is_result_field() { return 1; }
   void save_in_result_field(bool no_conversions)
   {
     (*ref)->save_in_field(result_field, no_conversions);
@@ -3628,14 +3834,12 @@ public:
   Item_cache_wrapper(Item *item_arg);
   ~Item_cache_wrapper();
 
-  const char *func_name() const { return "<expr_cache>"; }
   enum Type type() const { return EXPR_CACHE_ITEM; }
   enum Type real_type() const { return orig_item->type(); }
 
   bool set_cache(THD *thd);
 
   bool fix_fields(THD *thd, Item **it);
-  void fix_length_and_dec() {}
   void cleanup();
 
   /* Methods of getting value which should be cached in the cache */
@@ -4061,14 +4265,11 @@ protected:
   {
     item= i;
     null_value=maybe_null=item->maybe_null;
-    decimals=item->decimals;
-    max_length=item->max_length;
+    Type_std_attributes::set(item);
     name=item->name;
     cached_field_type= item->field_type();
     cached_result_type= item->result_type();
-    unsigned_flag= item->unsigned_flag;
     fixed= item->fixed;
-    collation.set(item->collation);
   }
 
 public:
@@ -4309,12 +4510,12 @@ class Item_default_value : public Item_field
 {
 public:
   Item *arg;
-  Item_default_value(Name_resolution_context *context_arg)
-    :Item_field(context_arg, (const char *)NULL, (const char *)NULL,
+  Item_default_value(THD *thd, Name_resolution_context *context_arg)
+    :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                (const char *)NULL),
      arg(NULL) {}
-  Item_default_value(Name_resolution_context *context_arg, Item *a)
-    :Item_field(context_arg, (const char *)NULL, (const char *)NULL,
+  Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a)
+    :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                 (const char *)NULL),
      arg(a) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
@@ -4347,8 +4548,8 @@ class Item_insert_value : public Item_field
 {
 public:
   Item *arg;
-  Item_insert_value(Name_resolution_context *context_arg, Item *a)
-    :Item_field(context_arg, (const char *)NULL, (const char *)NULL,
+  Item_insert_value(THD *thd, Name_resolution_context *context_arg, Item *a)
+    :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                (const char *)NULL),
      arg(a) {}
   bool eq(const Item *item, bool binary_cmp) const;
@@ -4405,11 +4606,11 @@ public:
   /* Pointer to Table_trigger_list object for table of this trigger */
   Table_triggers_list *triggers;
 
-  Item_trigger_field(Name_resolution_context *context_arg,
+  Item_trigger_field(THD *thd, Name_resolution_context *context_arg,
                      row_version_type row_ver_arg,
                      const char *field_name_arg,
                      ulong priv, const bool ro)
-    :Item_field(context_arg,
+    :Item_field(thd, context_arg,
                (const char *)NULL, (const char *)NULL, field_name_arg),
      row_version(row_ver_arg), field_idx((uint)-1), original_privilege(priv),
      want_privilege(priv), table_grants(NULL), read_only (ro)
@@ -4459,7 +4660,8 @@ private:
     BEFORE INSERT of BEFORE UPDATE trigger.
   */
   bool read_only;
-  virtual bool check_vcol_func_processor(uchar *arg)
+public:
+  bool check_vcol_func_processor(uchar *arg)
   {
     return trace_unsupported_by_check_vcol_func_processor("trigger");
   }
@@ -4516,10 +4718,7 @@ public:
   virtual bool setup(Item *item)
   {
     example= item;
-    max_length= item->max_length;
-    decimals= item->decimals;
-    collation.set(item->collation);
-    unsigned_flag= item->unsigned_flag;
+    Type_std_attributes::set(item);
     if (item->type() == FIELD_ITEM)
       cached_field= ((Item_field *)item)->field;
     return 0;

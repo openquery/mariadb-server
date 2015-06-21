@@ -181,6 +181,7 @@
 */
 #define OPTION_ALLOW_BATCH              (1ULL << 36) // THD, intern (slave)
 #define OPTION_SKIP_REPLICATION         (1ULL << 37) // THD, user
+#define OPTION_RPL_SKIP_PARALLEL        (1ULL << 38)
 
 /* The rest of the file is included in the server only */
 #ifndef MYSQL_CLIENT
@@ -191,7 +192,7 @@
 #define OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION    (1ULL << 2)
 #define OPTIMIZER_SWITCH_INDEX_MERGE_INTERSECT     (1ULL << 3)
 #define OPTIMIZER_SWITCH_INDEX_MERGE_SORT_INTERSECT (1ULL << 4)
-#define OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN (1ULL << 5)
+#define deprecated_ENGINE_CONDITION_PUSHDOWN       (1ULL << 5)
 #define OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN       (1ULL << 6)
 #define OPTIMIZER_SWITCH_DERIVED_MERGE             (1ULL << 7)
 #define OPTIMIZER_SWITCH_DERIVED_WITH_KEYS         (1ULL << 8)
@@ -345,11 +346,6 @@ enum enum_parsing_place
   PARSING_PLACE_SIZE /* always should be the last */
 };
 
-
-enum enum_var_type
-{
-  OPT_DEFAULT= 0, OPT_SESSION, OPT_GLOBAL
-};
 
 class sys_var;
 

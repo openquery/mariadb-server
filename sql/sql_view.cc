@@ -215,8 +215,7 @@ fill_defined_view_parts (THD *thd, TABLE_LIST *view)
   TABLE_LIST decoy;
 
   memcpy (&decoy, view, sizeof (TABLE_LIST));
-  if (tdc_open_view(thd, &decoy, decoy.alias, thd->mem_root,
-                    OPEN_VIEW_NO_PARSE))
+  if (tdc_open_view(thd, &decoy, decoy.alias, OPEN_VIEW_NO_PARSE))
     return TRUE;
 
   if (!lex->definer)
@@ -636,6 +635,11 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
                 command[thd->lex->create_view_mode].length);
     view_store_options(thd, views, &buff);
     buff.append(STRING_WITH_LEN("VIEW "));
+
+    /* Appending IF NOT EXISTS if present in the query */
+    if (lex->create_info.if_not_exists())
+      buff.append(STRING_WITH_LEN("IF NOT EXISTS "));
+
     /* Test if user supplied a db (ie: we did not use thd->db) */
     if (views->db && views->db[0] &&
         (thd->db == NULL || strcmp(views->db, thd->db)))
@@ -943,6 +947,14 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   view->definer.host= lex->definer->host;
   view->view_suid= lex->create_view_suid;
   view->with_check= lex->create_view_check;
+
+  DBUG_EXECUTE_IF("simulate_register_view_failure",
+                  {
+                    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+                    error= -1;
+                    goto err;
+                  });
+
   if ((view->updatable_view= (can_be_merged &&
                               view->algorithm != VIEW_ALGORITHM_TMPTABLE)))
   {
@@ -987,7 +999,14 @@ loop_out:
 
     if (ha_table_exists(thd, view->db, view->table_name, NULL))
     {
-      if (mode == VIEW_CREATE_NEW)
+      if (lex->create_info.if_not_exists())
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_TABLE_EXISTS_ERROR, ER(ER_TABLE_EXISTS_ERROR),
+                            view->table_name);
+        DBUG_RETURN(0);
+      }
+      else if (mode == VIEW_CREATE_NEW)
       {
 	my_error(ER_TABLE_EXISTS_ERROR, MYF(0), view->alias);
         error= -1;
@@ -1091,22 +1110,19 @@ err:
 
 
 
-/*
+/**
   read VIEW .frm and create structures
 
-  SYNOPSIS
-    mysql_make_view()
-    thd			Thread handle
-    parser		parser object
-    table		TABLE_LIST structure for filling
-    flags               flags
-  RETURN
-    0 ok
-    1 error
-*/
+  @param[in]  thd                 Thread handler
+  @param[in]  share               Share object of view
+  @param[in]  table               TABLE_LIST structure for filling
+  @param[in]  open_view_no_parse  Flag to indicate open view but
+                                  do not parse.
 
-bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
-                     uint flags)
+  @return false-in case of success, true-in case of error.
+*/
+bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
+                     bool open_view_no_parse)
 {
   SELECT_LEX *end, *UNINIT_VAR(view_select);
   LEX *old_lex, *lex;
@@ -1117,6 +1133,13 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
   TABLE_LIST *UNINIT_VAR(view_main_select_tables);
   DBUG_ENTER("mysql_make_view");
   DBUG_PRINT("info", ("table: 0x%lx (%s)", (ulong) table, table->table_name));
+
+  if (table->required_type == FRMTYPE_TABLE)
+  {
+    my_error(ER_WRONG_OBJECT, MYF(0), share->db.str, share->table_name.str,
+             "BASE TABLE");
+    DBUG_RETURN(true);
+  }
 
   if (table->view)
   {
@@ -1190,12 +1213,14 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
   table->definer.user.length= table->definer.host.length= 0;
 
   /*
-    TODO: when VIEWs will be stored in cache, table mem_root should
-    be used here
+    TODO: when VIEWs will be stored in cache (not only parser),
+    table mem_root should be used here
   */
-  if ((result= parser->parse((uchar*)table, thd->mem_root,
-                             view_parameters, required_view_parameters,
-                             &file_parser_dummy_hook)))
+  DBUG_ASSERT(share->view_def != NULL);
+  if ((result= share->view_def->parse((uchar*)table, thd->mem_root,
+                                      view_parameters,
+                                      required_view_parameters,
+                                      &file_parser_dummy_hook)))
     goto end;
 
   /*
@@ -1227,7 +1252,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
   */
   table->view_creation_ctx= View_creation_ctx::create(thd, table);
 
-  if (flags & OPEN_VIEW_NO_PARSE)
+  if (open_view_no_parse)
   {
     if (arena)
       thd->restore_active_arena(arena, &backup);
@@ -1345,11 +1370,12 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     Security_context *security_ctx= 0;
 
     /*
-      Check rights to run commands (EXPLAIN SELECT & SHOW CREATE) which show
-      underlying tables.
+      Check rights to run commands (ANALYZE SELECT, EXPLAIN SELECT &
+      SHOW CREATE) which show underlying tables.
       Skip this step if we are opening view for prelocking only.
     */
-    if (!table->prelocking_placeholder && (old_lex->describe))
+    if (!table->prelocking_placeholder && (old_lex->describe ||
+                                           old_lex->analyze_stmt))
     {
       /*
         The user we run EXPLAIN as (either the connected user who issued
@@ -1665,6 +1691,7 @@ end:
   if (arena)
     thd->restore_active_arena(arena, &backup);
   thd->lex= old_lex;
+  status_var_increment(thd->status_var.opened_views);
   DBUG_RETURN(result);
 
 err:
@@ -1727,7 +1754,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     {
       char name[FN_REFLEN];
       my_snprintf(name, sizeof(name), "%s.%s", view->db, view->table_name);
-      if (thd->lex->check_exists)
+      if (thd->lex->if_exists())
       {
 	push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 			    ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR),

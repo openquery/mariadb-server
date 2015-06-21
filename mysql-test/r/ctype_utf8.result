@@ -225,7 +225,7 @@ Warnings:
 Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
 select hex(s1) from t1;
 hex(s1)
-41
+413F
 drop table t1;
 create table t1 (s1 varchar(10) character set utf8);
 insert into t1 values (0x41FF);
@@ -233,7 +233,7 @@ Warnings:
 Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
 select hex(s1) from t1;
 hex(s1)
-41
+413F
 drop table t1;
 create table t1 (s1 text character set utf8);
 insert into t1 values (0x41FF);
@@ -241,7 +241,7 @@ Warnings:
 Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
 select hex(s1) from t1;
 hex(s1)
-41
+413F
 drop table t1;
 create table t1 (a text character set utf8, primary key(a(371)));
 ERROR 42000: Specified key was too long; max key length is 1000 bytes
@@ -1919,9 +1919,9 @@ Warnings:
 Warning	1300	Invalid utf8 character string: 'FF8F'
 select convert(char(0xff,0x8f) using utf8);
 convert(char(0xff,0x8f) using utf8)
-
+??
 Warnings:
-Warning	1300	Invalid utf8 character string: 'FF8F'
+Warning	1300	Invalid utf8 character string: '\xFF\x8F'
 set sql_mode=traditional;
 select char(0xff,0x8f using utf8);
 char(0xff,0x8f using utf8)
@@ -1947,7 +1947,7 @@ select convert(char(0xff,0x8f) using utf8);
 convert(char(0xff,0x8f) using utf8)
 NULL
 Warnings:
-Warning	1300	Invalid utf8 character string: 'FF8F'
+Warning	1300	Invalid utf8 character string: '\xFF\x8F'
 select hex(convert(char(2557 using latin1) using utf8));
 hex(convert(char(2557 using latin1) using utf8))
 09C3BD
@@ -2116,7 +2116,7 @@ select hex(convert(0xFF using utf8));
 hex(convert(0xFF using utf8))
 NULL
 Warnings:
-Warning	1300	Invalid utf8 character string: 'FF'
+Warning	1300	Invalid utf8 character string: '\xFF'
 select hex(_utf8 0x616263FF);
 ERROR HY000: Invalid utf8 character string: 'FF'
 select hex(_utf8 X'616263FF');
@@ -2133,9 +2133,9 @@ Warnings:
 Warning	1300	Invalid utf8 character string: 'FF'
 select hex(convert(0xFF using utf8));
 hex(convert(0xFF using utf8))
-
+3F
 Warnings:
-Warning	1300	Invalid utf8 character string: 'FF'
+Warning	1300	Invalid utf8 character string: '\xFF'
 select hex(_utf8 0x616263FF);
 ERROR HY000: Invalid utf8 character string: 'FF'
 select hex(_utf8 X'616263FF');
@@ -5220,7 +5220,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ALTER TABLE t1 MODIFY date_column DATETIME DEFAULT NULL;
 EXPLAIN SELECT * FROM t1 WHERE date_column BETWEEN '2010-09-01' AND '2010-10-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	date_column	date_column	9	NULL	1	Using index condition
+1	SIMPLE	t1	range	date_column	date_column	6	NULL	1	Using index condition
 DROP TABLE t1;
 #
 # Bug #31384 	DATE_ADD() and DATE_SUB() return binary data
@@ -5351,7 +5351,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `d` date DEFAULT NULL,
-  `bad` varchar(10) CHARACTER SET utf8 DEFAULT NULL
+  `bad` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1, t2;
 SET NAMES latin1;
@@ -9974,4 +9974,16 @@ DROP TABLE allbytes;
 # End of ctype_backslash.inc
 #
 # End of 10.0 tests
+#
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-6572 "USE dbname" with a bad sequence erroneously connects to a wrong database
+#
+SET NAMES utf8;
+SELECT * FROM `test😁😁test`;
+ERROR HY000: Invalid utf8 character string: 'test\xF0\x9F\x98\x81\xF0\x9F\x98\x81test'
+#
+# End of 10.1 tests
 #

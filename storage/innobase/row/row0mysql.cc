@@ -55,7 +55,9 @@ Created 9/17/2000 Heikki Tuuri
 #include "rem0cmp.h"
 #include "log0log.h"
 #include "btr0sea.h"
+#include "btr0defragment.h"
 #include "fil0fil.h"
+#include "fil0crypt.h"
 #include "ibuf0ibuf.h"
 #include "fts0fts.h"
 #include "fts0types.h"
@@ -3238,6 +3240,41 @@ run_again:
 	return(err);
 }
 
+static
+void
+fil_wait_crypt_bg_threads(
+	dict_table_t* table)
+{
+	uint start = time(0);
+	uint last = start;
+
+	if (table->space != 0) {
+		fil_space_crypt_mark_space_closing(table->space);
+	}
+
+	while (table->n_ref_count > 0) {
+		dict_mutex_exit_for_mysql();
+		os_thread_sleep(20000);
+		dict_mutex_enter_for_mysql();
+		uint now = time(0);
+		if (now >= last + 30) {
+			fprintf(stderr,
+				"WARNING: waited %u seconds "
+				"for ref-count on table: %s space: %u\n",
+				now - start, table->name, table->space);
+			last = now;
+		}
+
+		if (now >= start + 300) {
+			fprintf(stderr,
+				"WARNING: after %u seconds, gave up waiting "
+				"for ref-count on table: %s space: %u\n",
+				now - start, table->name, table->space);
+			break;
+		}
+	}
+}
+
 /*********************************************************************//**
 Truncates a table for MySQL.
 @return	error code or DB_SUCCESS */
@@ -3907,6 +3944,8 @@ row_drop_table_for_mysql(
 	if (!dict_table_is_temporary(table)) {
 
 		dict_stats_recalc_pool_del(table);
+		dict_stats_defrag_pool_del(table, NULL);
+		btr_defragment_remove_table(table);
 
 		/* Remove stats for this table and all of its indexes from the
 		persistent storage if it exists and if there are stats for this
@@ -4023,6 +4062,9 @@ row_drop_table_for_mysql(
 	preserve existing behaviour we remove the locks but ideally we
 	shouldn't have to. There should never be record locks on a table
 	that is going to be dropped. */
+
+	/* Wait on background threads to stop using table */
+	fil_wait_crypt_bg_threads(table);
 
 	if (table->n_ref_count == 0) {
 		lock_remove_all_on_table(table, TRUE);
@@ -5168,18 +5210,6 @@ end:
 			trx->error_state = DB_SUCCESS;
 			trx_rollback_to_savepoint(trx, NULL);
 			trx->error_state = DB_SUCCESS;
-		} else {
-			if (old_is_tmp && !new_is_tmp) {
-				/* After ALTER TABLE the table statistics
-				needs to be rebuilt.  Even if we close
-				table below there could be other
-				transactions using this table (e.g.
-				SELECT * FROM INFORMATION_SCHEMA.`TABLE_CONSTRAINTS`),
-				thus we can't remove table from dictionary cache
-				here. Therefore, we initialize the
-				transient statistics here. */
-				dict_stats_update_transient(table);
-			}
 		}
 	}
 

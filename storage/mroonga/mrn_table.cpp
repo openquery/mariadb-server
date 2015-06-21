@@ -35,7 +35,7 @@
 #include "mrn_variables.hpp"
 #include <mrn_lock.hpp>
 
-#if MYSQL_VERSION_ID >= 50603 && !defined(MRN_MARIADB_P)
+#if MYSQL_VERSION_ID >= 50603
 #  define MRN_HA_RESOLVE_BY_NAME(name) ha_resolve_by_name(NULL, (name), TRUE)
 #else
 #  define MRN_HA_RESOLVE_BY_NAME(name) ha_resolve_by_name(NULL, (name))

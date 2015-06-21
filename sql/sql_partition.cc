@@ -67,6 +67,7 @@
                                         // mysql_*_alter_copy_data
 #include "opt_range.h"                  // store_key_image_to_rec
 #include "sql_alter.h"                  // Alter_table_ctx
+#include "sql_select.h"
 
 #include <algorithm>
 using std::max;
@@ -194,7 +195,7 @@ static int cmp_rec_and_tuple_prune(part_column_list_val *val,
     item                                New converted item
 */
 
-Item* convert_charset_partition_constant(Item *item, const CHARSET_INFO *cs)
+Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
 {
   THD *thd= current_thd;
   Name_resolution_context *context= &thd->lex->current_select->context;
@@ -2221,7 +2222,7 @@ static int add_column_list_values(File fptr, partition_info *part_info,
       else
       {
         String *res;
-        const CHARSET_INFO *field_cs;
+        CHARSET_INFO *field_cs;
         bool need_cs_check= FALSE;
         Item_result result_type= STRING_RESULT;
 
@@ -4291,7 +4292,7 @@ bool mysql_unpack_partition(THD *thd,
 {
   bool result= TRUE;
   partition_info *part_info;
-  const CHARSET_INFO *old_character_set_client=
+  CHARSET_INFO *old_character_set_client=
     thd->variables.character_set_client;
   LEX *old_lex= thd->lex;
   LEX lex;
@@ -6893,7 +6894,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       1) Write the new frm, pack it and then delete it
       2) Perform the change within the handler
     */
-    if (mysql_write_frm(lpt, WFRM_WRITE_SHADOW | WFRM_PACK_FRM) ||
+    if (mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         mysql_change_partitions(lpt))
     {
       goto err;
@@ -7289,8 +7290,10 @@ void mem_alloc_error(size_t size)
 /**
   Return comma-separated list of used partitions in the provided given string.
 
+    @param      mem_root   Where to allocate following list
     @param      part_info  Partitioning info
     @param[out] parts      The resulting list of string to fill
+    @param[out] used_partitions_list result list to fill
 
     Generate a list of used partitions (from bits in part_info->read_partitions
     bitmap), and store it into the provided String object.
@@ -7301,7 +7304,10 @@ void mem_alloc_error(size_t size)
     that was written or locked.
 */
 
-void make_used_partitions_str(partition_info *part_info, String *parts_str)
+void make_used_partitions_str(MEM_ROOT *alloc,
+                              partition_info *part_info,
+                              String *parts_str,
+                              String_list &used_partitions_list)
 {
   parts_str->length(0);
   partition_element *pe;
@@ -7320,6 +7326,7 @@ void make_used_partitions_str(partition_info *part_info, String *parts_str)
         {
           if (parts_str->length())
             parts_str->append(',');
+          uint index= parts_str->length();
           parts_str->append(head_pe->partition_name,
                            strlen(head_pe->partition_name),
                            system_charset_info);
@@ -7327,6 +7334,7 @@ void make_used_partitions_str(partition_info *part_info, String *parts_str)
           parts_str->append(pe->partition_name,
                            strlen(pe->partition_name),
                            system_charset_info);
+          used_partitions_list.append_str(alloc, parts_str->ptr() + index);
         }
         partition_id++;
       }
@@ -7340,6 +7348,7 @@ void make_used_partitions_str(partition_info *part_info, String *parts_str)
       {
         if (parts_str->length())
           parts_str->append(',');
+        used_partitions_list.append_str(alloc, pe->partition_name);
         parts_str->append(pe->partition_name, strlen(pe->partition_name),
                          system_charset_info);
       }

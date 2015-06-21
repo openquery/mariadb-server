@@ -54,7 +54,6 @@
 #include <base64.h>
 #include <my_md5.h>
 #include "sha1.h"
-#include "my_aes.h"
 #include <zlib.h>
 C_MODE_START
 #include "../mysys/my_static.h"			// For soundex_map
@@ -163,8 +162,7 @@ String *Item_func_md5::val_str_ascii(String *str)
     uchar digest[16];
 
     null_value=0;
-    compute_md5_hash((char *) digest, (const char *) sptr->ptr(),
-                     sptr->length());
+    compute_md5_hash(digest, (const char *) sptr->ptr(), sptr->length());
     if (str->alloc(32))				// Ensure that memory is free
     {
       null_value=1;
@@ -367,29 +365,48 @@ void Item_func_sha2::fix_length_and_dec()
 }
 
 /* Implementation of AES encryption routines */
+void Item_aes_crypt::create_key(String *user_key, uchar *real_key)
+{
+  uchar *real_key_end= real_key + AES_KEY_LENGTH / 8;
+  uchar *ptr;
+  const char *sptr= user_key->ptr();
+  const char *key_end= sptr + user_key->length();
 
-String *Item_func_aes_encrypt::val_str(String *str)
+  bzero(real_key, AES_KEY_LENGTH / 8);
+
+  for (ptr= real_key; sptr < key_end; ptr++, sptr++)
+  {
+    if (ptr == real_key_end)
+      ptr= real_key;
+    *ptr ^= (uchar) *sptr;
+  }
+}
+
+
+String *Item_aes_crypt::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
-  char key_buff[80];
-  String tmp_key_value(key_buff, sizeof(key_buff), system_charset_info);
-  String *sptr= args[0]->val_str(str);			// String to encrypt
-  String *key=  args[1]->val_str(&tmp_key_value);	// key
-  int aes_length;
-  if (sptr && key) // we need both arguments to be not NULL
+  StringBuffer<80> user_key_buf;
+  String *sptr= args[0]->val_str(str);
+  String *user_key=  args[1]->val_str(&user_key_buf);
+  uint32 aes_length;
+
+  if (sptr && user_key) // we need both arguments to be not NULL
   {
     null_value=0;
     aes_length=my_aes_get_size(sptr->length()); // Calculate result length
 
     if (!str_value.alloc(aes_length))		// Ensure that memory is free
     {
-      // finally encrypt directly to allocated buffer.
-      if (my_aes_encrypt(sptr->ptr(),sptr->length(), (char*) str_value.ptr(),
-			 key->ptr(), key->length()) == aes_length)
+      uchar rkey[AES_KEY_LENGTH / 8];
+      create_key(user_key, rkey);
+
+      if (!crypt((uchar*)sptr->ptr(), sptr->length(),
+                 (uchar*)str_value.ptr(), &aes_length,
+                 rkey, AES_KEY_LENGTH / 8, 0, 0, 0))
       {
-	// We got the expected result length
-	str_value.length((uint) aes_length);
-	return &str_value;
+        str_value.length((uint) aes_length);
+        return &str_value;
       }
     }
   }
@@ -397,43 +414,10 @@ String *Item_func_aes_encrypt::val_str(String *str)
   return 0;
 }
 
-
 void Item_func_aes_encrypt::fix_length_and_dec()
 {
   max_length=my_aes_get_size(args[0]->max_length);
-}
-
-
-String *Item_func_aes_decrypt::val_str(String *str)
-{
-  DBUG_ASSERT(fixed == 1);
-  char key_buff[80];
-  String tmp_key_value(key_buff, sizeof(key_buff), system_charset_info);
-  String *sptr, *key;
-  DBUG_ENTER("Item_func_aes_decrypt::val_str");
-
-  sptr= args[0]->val_str(str);			// String to decrypt
-  key=  args[1]->val_str(&tmp_key_value);	// Key
-  if (sptr && key)  			// Need to have both arguments not NULL
-  {
-    null_value=0;
-    if (!str_value.alloc(sptr->length()))  // Ensure that memory is free
-    {
-      // finally decrypt directly to allocated buffer.
-      int length;
-      length=my_aes_decrypt(sptr->ptr(), sptr->length(),
-			    (char*) str_value.ptr(),
-                            key->ptr(), key->length());
-      if (length >= 0)  // if we got correct data data
-      {
-        str_value.length((uint) length);
-        DBUG_RETURN(&str_value);
-      }
-    }
-  }
-  // Bad parameters. No memory or bad data will all go here
-  null_value=1;
-  DBUG_RETURN(0);
+  crypt= my_aes_encrypt_ecb;
 }
 
 
@@ -441,6 +425,7 @@ void Item_func_aes_decrypt::fix_length_and_dec()
 {
    max_length=args[0]->max_length;
    maybe_null= 1;
+   crypt= my_aes_decrypt_ecb;
 }
 
 
@@ -1949,8 +1934,7 @@ String *Item_func_ltrim::val_str(String *str)
   char buff[MAX_FIELD_WIDTH], *ptr, *end;
   String tmp(buff,sizeof(buff),system_charset_info);
   String *res, *remove_str;
-  uint remove_length;
-  LINT_INIT(remove_length);
+  uint UNINIT_VAR(remove_length);
 
   res= args[0]->val_str(str);
   if ((null_value=args[0]->null_value))
@@ -1995,8 +1979,7 @@ String *Item_func_rtrim::val_str(String *str)
   char buff[MAX_FIELD_WIDTH], *ptr, *end;
   String tmp(buff, sizeof(buff), system_charset_info);
   String *res, *remove_str;
-  uint remove_length;
-  LINT_INIT(remove_length);
+  uint UNINIT_VAR(remove_length);
 
   res= args[0]->val_str(str);
   if ((null_value=args[0]->null_value))
@@ -2076,8 +2059,7 @@ String *Item_func_trim::val_str(String *str)
   const char *r_ptr;
   String tmp(buff, sizeof(buff), system_charset_info);
   String *res, *remove_str;
-  uint remove_length;
-  LINT_INIT(remove_length);
+  uint UNINIT_VAR(remove_length);
 
   res= args[0]->val_str(str);
   if ((null_value=args[0]->null_value))
@@ -2172,55 +2154,60 @@ void Item_func_trim::print(String *str, enum_query_type query_type)
 
 /* Item_func_password */
 
+bool Item_func_password::fix_fields(THD *thd, Item **ref)
+{
+  if (deflt)
+    alg= (thd->variables.old_passwords ? OLD : NEW);
+  return Item_str_ascii_func::fix_fields(thd, ref);
+}
+
 String *Item_func_password::val_str_ascii(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   String *res= args[0]->val_str(str); 
-  check_password_policy(res);
-  if (args[0]->null_value || res->length() == 0)
-    return make_empty_result();
-  my_make_scrambled_password(tmp_value, res->ptr(), res->length());
-  str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH, &my_charset_latin1);
+  switch (alg){
+  case NEW:
+    if (args[0]->null_value || res->length() == 0)
+      return make_empty_result();
+    my_make_scrambled_password(tmp_value, res->ptr(), res->length());
+    str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH, &my_charset_latin1);
+    break;
+  case OLD:
+    if ((null_value=args[0]->null_value))
+      return 0;
+    if (res->length() == 0)
+      return make_empty_result();
+    my_make_scrambled_password_323(tmp_value, res->ptr(), res->length());
+    str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH_323, &my_charset_latin1);
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
   return str;
 }
 
-char *Item_func_password::alloc(THD *thd, const char *password, size_t pass_len)
+char *Item_func_password::alloc(THD *thd, const char *password,
+                                size_t pass_len, enum PW_Alg al)
 {
-  char *buff= (char *) thd->alloc(SCRAMBLED_PASSWORD_CHAR_LENGTH+1);
-  if (buff)
-  {
-    String *password_str= new (thd->mem_root)String(password, thd->variables.
-                                                    character_set_client);
-    check_password_policy(password_str);
+  char *buff= (char *) thd->alloc((al==NEW)?
+                                  SCRAMBLED_PASSWORD_CHAR_LENGTH + 1:
+                                  SCRAMBLED_PASSWORD_CHAR_LENGTH_323 + 1);
+  if (!buff)
+    return NULL;
+
+  switch (al) {
+  case NEW:
     my_make_scrambled_password(buff, password, pass_len);
+    break;
+  case OLD:
+    my_make_scrambled_password_323(buff, password, pass_len);
+    break;
+  default:
+    DBUG_ASSERT(0);
   }
   return buff;
 }
 
-
-/* Item_func_old_password */
-
-String *Item_func_old_password::val_str_ascii(String *str)
-{
-  DBUG_ASSERT(fixed == 1);
-  String *res= args[0]->val_str(str);
-  if ((null_value=args[0]->null_value))
-    return 0;
-  if (res->length() == 0)
-    return make_empty_result();
-  my_make_scrambled_password_323(tmp_value, res->ptr(), res->length());
-  str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH_323, &my_charset_latin1);
-  return str;
-}
-
-char *Item_func_old_password::alloc(THD *thd, const char *password,
-                                    size_t pass_len)
-{
-  char *buff= (char *) thd->alloc(SCRAMBLED_PASSWORD_CHAR_LENGTH_323+1);
-  if (buff)
-    my_make_scrambled_password_323(buff, password, pass_len);
-  return buff;
-}
 
 
 #define bin_to_ascii(c) ((c)>=38?((c)-38+'a'):(c)>=12?((c)-12+'A'):(c)+'.')
@@ -3004,7 +2991,7 @@ err:
 
 void Item_func_space::fix_length_and_dec()
 {
-  collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII); 
+  collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   if (args[0]->const_item())
   {
     /* must be longlong to avoid truncation */
@@ -3012,12 +2999,12 @@ void Item_func_space::fix_length_and_dec()
     if (args[0]->null_value)
       goto end;
     /*
-     Assumes that the maximum length of a String is < INT_MAX32. 
-     Set here so that rest of code sees out-of-bound value as such. 
+     Assumes that the maximum length of a String is < INT_MAX32.
+     Set here so that rest of code sees out-of-bound value as such.
     */
     if (count > INT_MAX32)
       count= INT_MAX32;
-    fix_char_length_ulonglong(count); 
+    fix_char_length_ulonglong(count);
     return;
   }
 
@@ -3031,8 +3018,8 @@ String *Item_func_space::val_str(String *str)
 {
   uint tot_length;
   longlong count= args[0]->val_int();
-  const CHARSET_INFO *cs= collation.collation;
-   
+  CHARSET_INFO *cs= collation.collation;
+
   if (args[0]->null_value)
     goto err;				// string and/or delim are null
   null_value= 0;
@@ -3040,8 +3027,8 @@ String *Item_func_space::val_str(String *str)
   if (count <= 0 && (count == 0 || !args[0]->unsigned_flag))
     return make_empty_result();
   /*
-   Assumes that the maximum length of a String is < INT_MAX32. 
-   Bounds check on count:  If this is triggered, we will error. 
+   Assumes that the maximum length of a String is < INT_MAX32.
+   Bounds check on count:  If this is triggered, we will error.
   */
   if ((ulonglong) count > INT_MAX32)
     count= INT_MAX32;
@@ -3063,7 +3050,7 @@ String *Item_func_space::val_str(String *str)
   str->length(tot_length);
   str->set_charset(cs);
   cs->cset->fill(cs, (char*) str->ptr(), tot_length, ' ');
-  return str; 
+  return str;
 
 err:
   null_value= 1;
@@ -3377,15 +3364,12 @@ String *Item_func_conv_charset::val_str(String *str)
   if (use_cached_value)
     return null_value ? 0 : &str_value;
   String *arg= args[0]->val_str(str);
-  uint dummy_errors;
-  if (args[0]->null_value)
-  {
-    null_value=1;
-    return 0;
-  }
-  null_value= tmp_value.copy(arg->ptr(), arg->length(), arg->charset(),
-                             conv_charset, &dummy_errors);
-  return null_value ? 0 : check_well_formed_result(&tmp_value);
+  String_copier_for_item copier(current_thd);
+  return ((null_value= args[0]->null_value ||
+                       copier.copy_with_warn(conv_charset, &tmp_value,
+                                             arg->charset(), arg->ptr(),
+                                             arg->length(), arg->length()))) ?
+    0 : &tmp_value;
 }
 
 void Item_func_conv_charset::fix_length_and_dec()

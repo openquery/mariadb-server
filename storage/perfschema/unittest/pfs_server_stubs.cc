@@ -33,3 +33,8 @@ void compute_digest_md5(const sql_digest_storage *, unsigned char *)
 {
 }
 
+class sys_var { public: enum where { AUTO }; };
+void mark_sys_var_value_origin(void *ptr, enum sys_var::where here)
+{
+}
+

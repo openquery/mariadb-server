@@ -1392,7 +1392,6 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
     last_inuse_relaylog->next= ir;
   }
   last_inuse_relaylog= ir;
-  my_atomic_rwlock_init(&ir->inuse_relaylog_atomic_lock);
 
   return 0;
 }
@@ -1402,7 +1401,6 @@ void
 Relay_log_info::free_inuse_relaylog(inuse_relaylog *ir)
 {
   my_free(ir->relay_log_state);
-  my_atomic_rwlock_destroy(&ir->inuse_relaylog_atomic_lock);
   my_free(ir);
 }
 
@@ -1467,7 +1465,7 @@ rpl_load_gtid_slave_state(THD *thd)
     goto end;
   array_inited= true;
 
-  mysql_reset_thd_for_next_command(thd);
+  thd->reset_for_next_command();
 
   tlist.init_one_table(STRING_WITH_LEN("mysql"),
                        rpl_gtid_slave_state_table_name.str,
@@ -1630,7 +1628,9 @@ rpl_group_info::reinit(Relay_log_info *rli)
   row_stmt_start_timestamp= 0;
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
+  gtid_ev_flags2= 0;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
+  speculation= SPECULATE_NO;
   commit_orderer.reinit();
 }
 

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -49,6 +50,10 @@ Smart ALTER TABLE
 #include "pars0pars.h"
 #include "row0sel.h"
 #include "ha_innodb.h"
+#ifdef WITH_WSREP
+//#include "wsrep_api.h"
+#include <sql_acl.h>	// PROCESS_ACL
+#endif
 
 /** Operations for creating secondary indexes (no rebuild needed) */
 static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ONLINE_CREATE
@@ -262,6 +267,29 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	update_thd();
 	trx_search_latch_release_if_reserved(prebuilt->trx);
+
+	/* Change on engine specific table options require rebuild of the
+	table */
+	if (ha_alter_info->handler_flags
+		& Alter_inplace_info::CHANGE_CREATE_OPTION) {
+		ha_table_option_struct *new_options= ha_alter_info->create_info->option_struct;
+		ha_table_option_struct *old_options= table->s->option_struct;
+
+		if (new_options->page_compressed != old_options->page_compressed ||
+		    new_options->page_compression_level != old_options->page_compression_level ||
+			new_options->atomic_writes != old_options->atomic_writes) {
+			ha_alter_info->unsupported_reason = innobase_get_err_msg(
+				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
+			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+		}
+
+		if (new_options->encryption != old_options->encryption ||
+			new_options->encryption_key_id != old_options->encryption_key_id) {
+			ha_alter_info->unsupported_reason = innobase_get_err_msg(
+				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
+			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+		}
+	}
 
 	if (ha_alter_info->handler_flags
 	    & ~(INNOBASE_INPLACE_IGNORE
@@ -1180,7 +1208,8 @@ innobase_rec_to_mysql(
 
 		field->reset();
 
-		ipos = dict_index_get_nth_col_or_prefix_pos(index, i, TRUE);
+		ipos = dict_index_get_nth_col_or_prefix_pos(index, i, TRUE,
+							    NULL);
 
 		if (ipos == ULINT_UNDEFINED
 		    || rec_offs_nth_extern(offsets, ipos)) {
@@ -1232,7 +1261,8 @@ innobase_fields_to_mysql(
 
 		field->reset();
 
-		ipos = dict_index_get_nth_col_or_prefix_pos(index, i, TRUE);
+		ipos = dict_index_get_nth_col_or_prefix_pos(index, i, TRUE,
+							    NULL);
 
 		if (ipos == ULINT_UNDEFINED
 		    || dfield_is_ext(&fields[ipos])
@@ -3392,6 +3422,11 @@ ha_innobase::prepare_inplace_alter_table(
 		DBUG_RETURN(true);
 	}
 
+	/* Init online ddl status variables */
+	onlineddl_rowlog_rows = 0;
+	onlineddl_rowlog_pct_used = 0;
+	onlineddl_pct_progress = 0;
+
 	MONITOR_ATOMIC_INC(MONITOR_PENDING_ALTER_TABLE);
 
 #ifdef UNIV_DEBUG
@@ -3414,6 +3449,17 @@ ha_innobase::prepare_inplace_alter_table(
 
 	if (ha_alter_info->handler_flags
 	    & Alter_inplace_info::CHANGE_CREATE_OPTION) {
+		/* Check engine specific table options */
+		if (const char* invalid_tbopt = check_table_options(
+				user_thd, altered_table,
+				ha_alter_info->create_info,
+				prebuilt->table->space != 0,
+				srv_file_format)) {
+			my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
+				 table_type(), invalid_tbopt);
+			goto err_exit_no_heap;
+		}
+
 		if (const char* invalid_opt = create_options_are_invalid(
 			    user_thd, altered_table,
 			    ha_alter_info->create_info,
@@ -4026,6 +4072,11 @@ oom:
 		error = row_log_table_apply(
 			ctx->thr, prebuilt->table, altered_table);
 	}
+
+	/* Init online ddl status variables */
+	onlineddl_rowlog_rows = 0;
+	onlineddl_rowlog_pct_used = 0;
+	onlineddl_pct_progress = 0;
 
 	DEBUG_SYNC_C("inplace_after_index_build");
 

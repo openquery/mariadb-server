@@ -45,6 +45,7 @@
 #cmakedefine HAVE_INTTYPES_H 1
 #cmakedefine HAVE_KQUEUE 1
 #cmakedefine HAVE_LIMITS_H 1
+#cmakedefine HAVE_LINK_H 1
 #cmakedefine HAVE_LINUX_UNISTD_H 1
 #cmakedefine HAVE_LOCALE_H 1
 #cmakedefine HAVE_MALLOC_H 1
@@ -93,6 +94,7 @@
 #cmakedefine HAVE_SYS_TYPES_H 1
 #cmakedefine HAVE_SYS_UN_H 1
 #cmakedefine HAVE_SYS_VADVISE_H 1
+#cmakedefine HAVE_SYS_STATVFS_H 1
 #cmakedefine HAVE_TERM_H 1
 #cmakedefine HAVE_TERMBITS_H 1
 #cmakedefine HAVE_TERMIOS_H 1
@@ -163,6 +165,7 @@
 #cmakedefine HAVE_FSYNC 1
 #cmakedefine HAVE_FTIME 1
 #cmakedefine HAVE_GETADDRINFO 1
+#cmakedefine HAVE_GETIFADDRS 1
 #cmakedefine HAVE_GETCWD 1
 #cmakedefine HAVE_GETHOSTBYADDR_R 1
 #cmakedefine HAVE_GETHRTIME 1
@@ -214,6 +217,8 @@
 #cmakedefine HAVE_POLL 1
 #cmakedefine HAVE_PORT_CREATE 1
 #cmakedefine HAVE_POSIX_FALLOCATE 1
+#cmakedefine HAVE_LINUX_FALLOC_H 1
+#cmakedefine HAVE_FALLOCATE 1
 #cmakedefine HAVE_PREAD 1
 #cmakedefine HAVE_PAUSE_INSTRUCTION 1
 #cmakedefine HAVE_FAKE_PAUSE_INSTRUCTION 1
@@ -469,7 +474,6 @@
 #cmakedefine HAVE_SOLARIS_STYLE_GETHOST 1
 
 #cmakedefine MY_ATOMIC_MODE_DUMMY 1
-#cmakedefine MY_ATOMIC_MODE_RWLOCKS 1
 #cmakedefine HAVE_GCC_ATOMIC_BUILTINS 1
 #cmakedefine HAVE_GCC_C11_ATOMICS 1
 #cmakedefine HAVE_SOLARIS_ATOMIC 1
@@ -532,7 +536,6 @@
 #cmakedefine ENABLED_LOCAL_INFILE 1
 #cmakedefine ENABLED_PROFILING 1
 #cmakedefine EXTRA_DEBUG 1
-#cmakedefine BACKUP_TEST 1
 #cmakedefine CYBOZU 1
 #cmakedefine USE_SYMDIR 1
 
@@ -588,7 +591,8 @@
 #cmakedefine HAVE_CHARSET_utf32 1
 #cmakedefine HAVE_UCA_COLLATIONS 1
 #cmakedefine HAVE_COMPRESS 1
-
+#cmakedefine HAVE_EncryptAes128Ctr 1
+#cmakedefine HAVE_EncryptAes128Gcm 1
 
 /*
   Stuff that always need to be defined (compile breaks without it)
@@ -610,10 +614,6 @@
 #cmakedefine WITH_CSV_STORAGE_ENGINE 1
 #cmakedefine WITH_PARTITION_STORAGE_ENGINE 1
 #cmakedefine WITH_PERFSCHEMA_STORAGE_ENGINE 1
-#cmakedefine WITH_NDBCLUSTER_STORAGE_ENGINE 1
-#if (WITH_NDBCLUSTER_STORAGE_ENGINE) && !defined(EMBEDDED_LIBRARY)
-# define HAVE_NDB_BINLOG 1
-#endif
 #cmakedefine WITH_ARIA_STORAGE_ENGINE 1
 #cmakedefine USE_ARIA_FOR_TMP_TABLES 1
 
@@ -648,6 +648,12 @@
 
 #cmakedefine SIZEOF_TIME_T @SIZEOF_TIME_T@
 #cmakedefine TIME_T_UNSIGNED @TIME_T_UNSIGNED@
+
+#ifndef EMBEDDED_LIBRARY
+#cmakedefine WSREP_INTERFACE_VERSION "@WSREP_INTERFACE_VERSION@"
+#cmakedefine WITH_WSREP 1
+#cmakedefine WSREP_PROC_INFO 1
+#endif
 
 #ifdef _AIX
 /*

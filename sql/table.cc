@@ -40,6 +40,7 @@
 #include "sql_statistics.h"
 #include "discover.h"
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
+#include "sql_view.h"
 
 /* INFORMATION_SCHEMA name */
 LEX_STRING INFORMATION_SCHEMA_NAME= {C_STRING_WITH_LEN("information_schema")};
@@ -325,7 +326,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                      &share->LOCK_share, MY_MUTEX_INIT_SLOW);
     mysql_mutex_init(key_TABLE_SHARE_LOCK_ha_data,
                      &share->LOCK_ha_data, MY_MUTEX_INIT_FAST);
-    tdc_init_share(share);
+    tdc_assign_new_table_id(share);
   }
   DBUG_RETURN(share);
 }
@@ -422,7 +423,6 @@ void TABLE_SHARE::destroy()
   {
     mysql_mutex_destroy(&LOCK_share);
     mysql_mutex_destroy(&LOCK_ha_data);
-    tdc_deinit_share(this);
   }
   my_hash_free(&name_hash);
 
@@ -559,13 +559,15 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   uchar head[FRM_HEADER_SIZE];
   char	path[FN_REFLEN];
   size_t frmlen, read_length;
+  uint length;
   DBUG_ENTER("open_table_def");
   DBUG_PRINT("enter", ("table: '%s'.'%s'  path: '%s'", share->db.str,
                        share->table_name.str, share->normalized_path.str));
 
   share->error= OPEN_FRM_OPEN_ERROR;
 
-  strxmov(path, share->normalized_path.str, reg_ext, NullS);
+  length=(uint) (strxmov(path, share->normalized_path.str, reg_ext, NullS) -
+                 path);
   if (flags & GTS_FORCE_DISCOVERY)
   {
     DBUG_ASSERT(flags & GTS_TABLE);
@@ -596,7 +598,21 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   if (memcmp(head, STRING_WITH_LEN("TYPE=VIEW\n")) == 0)
   {
     share->is_view= 1;
-    share->error= flags & GTS_VIEW ? OPEN_FRM_OK : OPEN_FRM_NOT_A_TABLE;
+    if (flags & GTS_VIEW)
+    {
+      LEX_STRING pathstr= { path, length };
+      /*
+        Create view file parser and hold it in TABLE_SHARE member
+        view_def.
+      */
+      share->view_def= sql_parse_prepare(&pathstr, &share->mem_root, true);
+      if (!share->view_def)
+        share->error= OPEN_FRM_ERROR_ALREADY_ISSUED;
+      else
+        share->error= OPEN_FRM_OK;
+    }
+    else
+      share->error= OPEN_FRM_NOT_A_TABLE;
     goto err;
   }
   if (!is_binary_frm_header(head))
@@ -925,6 +941,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint vcol_screen_length, UNINIT_VAR(options_len);
   char *vcol_screen_pos;
   const uchar *options= 0;
+  uint UNINIT_VAR(gis_options_len);
+  const uchar *gis_options= 0;
   KEY first_keyinfo;
   uint len;
   uint ext_key_parts= 0;
@@ -997,11 +1015,21 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
         {
           LEX_STRING name= { (char*)extra2, length };
-          share->default_part_plugin= ha_resolve_by_name(NULL, &name);
+          share->default_part_plugin= ha_resolve_by_name(NULL, &name, false);
           if (!share->default_part_plugin)
             goto err;
         }
 #endif
+        break;
+      case EXTRA2_GIS:
+#ifdef HAVE_SPATIAL
+        {
+          if (gis_options)
+            goto err;
+          gis_options= extra2;
+          gis_options_len= length;
+        }
+#endif /*HAVE_SPATIAL*/
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
@@ -1036,8 +1064,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (frm_image[61] && !share->default_part_plugin)
   {
     enum legacy_db_type db_type= (enum legacy_db_type) (uint) frm_image[61];
-    share->default_part_plugin=
-                ha_lock_engine(NULL, ha_checktype(thd, db_type, 1, 0));
+    share->default_part_plugin= ha_lock_engine(NULL, ha_checktype(thd, db_type));
     if (!share->default_part_plugin)
       goto err;
   }
@@ -1049,7 +1076,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   */
   if (legacy_db_type > DB_TYPE_UNKNOWN && 
       legacy_db_type < DB_TYPE_FIRST_DYNAMIC)
-    se_plugin= ha_lock_engine(NULL, ha_checktype(thd, legacy_db_type, 0, 0));
+    se_plugin= ha_lock_engine(NULL, ha_checktype(thd, legacy_db_type));
   share->db_create_options= db_create_options= uint2korr(frm_image+30);
   share->db_options_in_use= share->db_create_options;
   share->mysql_version= uint4korr(frm_image+51);
@@ -1154,7 +1181,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       name.str= (char*) next_chunk + 2;
       name.length= str_db_type_length;
 
-      plugin_ref tmp_plugin= ha_resolve_by_name(thd, &name);
+      plugin_ref tmp_plugin= ha_resolve_by_name(thd, &name, false);
       if (tmp_plugin != NULL && !plugin_equals(tmp_plugin, se_plugin))
       {
         if (se_plugin)
@@ -1451,6 +1478,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     LEX_STRING comment;
     Virtual_column_info *vcol_info= 0;
     bool fld_stored_in_db= TRUE;
+    uint gis_length, gis_decimals, srid= 0;
 
     if (new_frm_ver >= 3)
     {
@@ -1467,8 +1495,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       if (field_type == MYSQL_TYPE_GEOMETRY)
       {
 #ifdef HAVE_SPATIAL
+        uint gis_opt_read;
+        Field_geom::storage_type st_type;
 	geom_type= (Field::geometry_type) strpos[14];
 	charset= &my_charset_bin;
+        gis_opt_read= gis_field_options_read(gis_options, gis_options_len,
+            &st_type, &gis_length, &gis_decimals, &srid);
+        gis_options+= gis_opt_read;
+        gis_options_len-= gis_opt_read;
 #else
 	goto err;
 #endif
@@ -1629,7 +1663,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 		 pack_flag,
 		 field_type,
 		 charset,
-		 geom_type,
+		 geom_type, srid,
 		 (Field::utype) MTYP_TYPENR(unireg_type),
 		 (interval_nr ?
 		  share->intervals+interval_nr-1 :
@@ -2079,7 +2113,7 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
   if (lex->sql_command != SQLCOM_CREATE_TABLE)
     return 1;
   // ... create like
-  if (create_info->options & HA_LEX_CREATE_TABLE_LIKE)
+  if (lex->create_info.like())
     return 1;
   // ... create select
   if (lex->select_lex.item_list.elements)
@@ -2088,7 +2122,7 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
   if (create_info->tmp_table())
     return 1;
   // ... if exists
-  if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)
+  if (lex->create_info.if_not_exists())
     return 1;
 
   // XXX error out or rather ignore the following:
@@ -2124,6 +2158,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   uint unused2;
   handlerton *hton= plugin_hton(db_plugin);
   LEX_CUSTRING frm= {0,0};
+  LEX_STRING db_backup= { thd->db, thd->db_length };
 
   DBUG_ENTER("TABLE_SHARE::init_from_sql_statement_string");
 
@@ -2151,6 +2186,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   else
     thd->set_n_backup_active_arena(arena, &backup);
 
+  thd->reset_db(db.str, db.length);
   lex_start(thd);
 
   if ((error= parse_sql(thd, & parser_state, NULL) || 
@@ -2179,6 +2215,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 ret:
   my_free(const_cast<uchar*>(frm.str));
   lex_end(thd->lex);
+  thd->reset_db(db_backup.str, db_backup.length);
   thd->lex= old_lex;
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -2413,6 +2450,7 @@ bool unpack_vcol_info_from_frm(THD *thd,
   Query_arena *backup_stmt_arena_ptr;
   Query_arena backup_arena;
   Query_arena *vcol_arena= 0;
+  Create_field vcol_storage; // placeholder for vcol_info
   Parser_state parser_state;
   LEX *old_lex= thd->lex;
   LEX lex;
@@ -2476,7 +2514,8 @@ bool unpack_vcol_info_from_frm(THD *thd,
   if (init_lex_with_single_table(thd, table, &lex))
     goto err;
 
-  thd->lex->parse_vcol_expr= TRUE;
+  lex.parse_vcol_expr= TRUE;
+  lex.last_field= &vcol_storage;
 
   /* 
     Step 3: Use the parser to build an Item object from vcol_expr_str.
@@ -2486,7 +2525,7 @@ bool unpack_vcol_info_from_frm(THD *thd,
     goto err;
   }
   /* From now on use vcol_info generated by the parser. */
-  field->vcol_info= thd->lex->vcol_info;
+  field->vcol_info= vcol_storage.vcol_info;
 
   /* Validate the Item tree. */
   if (fix_vcol_expr(thd, table, field))
@@ -3287,8 +3326,8 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   fileinfo[1]= 1;
   fileinfo[2]= FRM_VER + 3 + MY_TEST(create_info->varchar);
 
-  fileinfo[3]= (uchar) ha_legacy_type(
-        ha_checktype(thd,ha_legacy_type(create_info->db_type),0,0));
+  DBUG_ASSERT(ha_storage_engine_is_enabled(create_info->db_type));
+  fileinfo[3]= (uchar) ha_legacy_type(create_info->db_type);
 
   /*
     Keep in sync with pack_keys() in unireg.cc
@@ -3865,11 +3904,11 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
     because we won't try to acquire tdc.LOCK_table_share while
     holding a write-lock on MDL_lock::m_rwlock.
   */
-  mysql_mutex_lock(&tdc.LOCK_table_share);
-  tdc.all_tables_refs++;
-  mysql_mutex_unlock(&tdc.LOCK_table_share);
+  mysql_mutex_lock(&tdc->LOCK_table_share);
+  tdc->all_tables_refs++;
+  mysql_mutex_unlock(&tdc->LOCK_table_share);
 
-  All_share_tables_list::Iterator tables_it(tdc.all_tables);
+  TDC_element::All_share_tables_list::Iterator tables_it(tdc->all_tables);
 
   /*
     In case of multiple searches running in parallel, avoid going
@@ -3887,7 +3926,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
 
   while ((table= tables_it++))
   {
-    DBUG_ASSERT(table->in_use && tdc.flushed);
+    DBUG_ASSERT(table->in_use && tdc->flushed);
     if (gvisitor->inspect_edge(&table->in_use->mdl_context))
     {
       goto end_leave_node;
@@ -3897,7 +3936,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   tables_it.rewind();
   while ((table= tables_it++))
   {
-    DBUG_ASSERT(table->in_use && tdc.flushed);
+    DBUG_ASSERT(table->in_use && tdc->flushed);
     if (table->in_use->mdl_context.visit_subgraph(gvisitor))
     {
       goto end_leave_node;
@@ -3910,10 +3949,10 @@ end_leave_node:
   gvisitor->leave_node(src_ctx);
 
 end:
-  mysql_mutex_lock(&tdc.LOCK_table_share);
-  if (!--tdc.all_tables_refs)
-    mysql_cond_broadcast(&tdc.COND_release);
-  mysql_mutex_unlock(&tdc.LOCK_table_share);
+  mysql_mutex_lock(&tdc->LOCK_table_share);
+  if (!--tdc->all_tables_refs)
+    mysql_cond_broadcast(&tdc->COND_release);
+  mysql_mutex_unlock(&tdc->LOCK_table_share);
 
   return result;
 }
@@ -3948,14 +3987,14 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   Wait_for_flush ticket(mdl_context, this, deadlock_weight);
   MDL_wait::enum_wait_status wait_status;
 
-  mysql_mutex_assert_owner(&tdc.LOCK_table_share);
-  DBUG_ASSERT(tdc.flushed);
+  mysql_mutex_assert_owner(&tdc->LOCK_table_share);
+  DBUG_ASSERT(tdc->flushed);
 
-  tdc.m_flush_tickets.push_front(&ticket);
+  tdc->m_flush_tickets.push_front(&ticket);
 
   mdl_context->m_wait.reset_status();
 
-  mysql_mutex_unlock(&tdc.LOCK_table_share);
+  mysql_mutex_unlock(&tdc->LOCK_table_share);
 
   mdl_context->will_wait_for(&ticket);
 
@@ -3966,21 +4005,10 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
 
   mdl_context->done_waiting_for();
 
-  mysql_mutex_lock(&tdc.LOCK_table_share);
-
-  tdc.m_flush_tickets.remove(&ticket);
-
-  if (tdc.m_flush_tickets.is_empty() && tdc.ref_count == 0)
-  {
-    /*
-      If our thread was the last one using the share,
-      we must destroy it here.
-    */
-    mysql_mutex_unlock(&tdc.LOCK_table_share);
-    destroy();
-  }
-  else
-    mysql_mutex_unlock(&tdc.LOCK_table_share);
+  mysql_mutex_lock(&tdc->LOCK_table_share);
+  tdc->m_flush_tickets.remove(&ticket);
+  mysql_cond_broadcast(&tdc->COND_release);
+  mysql_mutex_unlock(&tdc->LOCK_table_share);
 
 
   /*
@@ -4026,7 +4054,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
 
 void TABLE::init(THD *thd, TABLE_LIST *tl)
 {
-  DBUG_ASSERT(s->tdc.ref_count > 0 || s->tmp_table != NO_TMP_TABLE);
+  DBUG_ASSERT(s->tmp_table != NO_TMP_TABLE || s->tdc->ref_count > 0);
 
   if (thd->lex->need_correct_ident())
     alias_name_used= my_strcasecmp(table_alias_charset,
@@ -4157,7 +4185,7 @@ void TABLE::reset_item_list(List<Item> *item_list) const
 void  TABLE_LIST::calc_md5(char *buffer)
 {
   uchar digest[16];
-  compute_md5_hash((char*) digest, select_stmt.str,
+  compute_md5_hash(digest, select_stmt.str,
                    select_stmt.length);
   sprintf((char *) buffer,
 	    "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
@@ -4801,9 +4829,8 @@ bool TABLE_LIST::is_leaf_for_name_resolution()
 
 TABLE_LIST *TABLE_LIST::first_leaf_for_name_resolution()
 {
-  TABLE_LIST *cur_table_ref;
+  TABLE_LIST *UNINIT_VAR(cur_table_ref);
   NESTED_JOIN *cur_nested_join;
-  LINT_INIT(cur_table_ref);
 
   if (is_leaf_for_name_resolution())
     return this;
@@ -5520,10 +5547,9 @@ Field_iterator_table_ref::get_or_create_column_ref(THD *thd, TABLE_LIST *parent_
 {
   Natural_join_column *nj_col;
   bool is_created= TRUE;
-  uint field_count;
+  uint UNINIT_VAR(field_count);
   TABLE_LIST *add_table_ref= parent_table_ref ?
                              parent_table_ref : table_ref;
-  LINT_INIT(field_count);
 
   if (field_it == &table_field_it)
   {
@@ -6230,7 +6256,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   KEY* keyinfo;
   Field **reg_field;
   uint i;
-  
+
   bool key_start= TRUE;
   KEY_PART_INFO* key_part_info=
       (KEY_PART_INFO*) alloc_root(&mem_root, sizeof(KEY_PART_INFO)*key_parts);
