@@ -9,10 +9,10 @@ compiler:
 # MDEV-7398 for clang problems on 10.1 branch
   - clang
 cache:
-  - apt
-  - ccache
+  apt:
+  ccache:
   directories:
-  - $HOME/binutils
+    - $HOME/binutils
 
 #  Timing on build an test needs to be < 50 minutes. The compile is ~6-7minutes
 #  https://travis-ci.org/openquery/mariadb-server/builds/60083380
