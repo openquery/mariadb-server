@@ -1,7 +1,7 @@
 # vim ft=yaml
 # travis-ci.org definition
 
-sudo: required
+sudo: false
 
 language: cpp
 compiler:
@@ -11,6 +11,8 @@ compiler:
 cache:
   - apt
   - ccache
+  directories:
+  - $HOME/binutils
 
 #  Timing on build an test needs to be < 50 minutes. The compile is ~6-7minutes
 #  https://travis-ci.org/openquery/mariadb-server/builds/60083380
@@ -100,8 +102,6 @@ addons:
       - gcc-5
       - g++-5
       - clang-3.7
-#      - gcc-4.9
-#      - g++-4.9
 #      - binutils
       - libjemalloc-dev
       - hardening-wrapper
@@ -133,25 +133,28 @@ addons:
       - sphinxsearch
       - rpm
       - libboost-all-dev
-# TMP disable MDEV8051 - libjudy-dev - https://github.com/travis-ci/travis-ci/issues/3762
+      - libjudy-dev
 
 before_install:
 # need to do before installing hardening-wrapper
-  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 50
-  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 50
-  - sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-5 50
+# TMP disable - sudo
+#  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 50
+#  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 50
+#  - sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-5 50
 # still whitelist applies in VM mode: https://github.com/travis-ci/travis-ci/issues/3762
-  - sudo apt-get install -y -qq lcov dropbear
+# TMP disable for container build - no sudo
+#  - sudo apt-get install -y -qq lcov dropbear
 # MDEV-8051 - clang has OQgraph error - just not installing dep for now
 #  - if [ ${CC} != "clang" ]; then
 #      sudo apt-get install -y -qq libjudy-dev;
 #    fi
+# TODO can't until https://github.com/travis-ci/travis-ci/issues/3737
 # try to pull binutil-2.23+ from trusty
-  - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty main'
-  - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty-security main'
-  - sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0x3B4FE6ACC0B21F32
-  - sudo apt-get update -qq
-  - sudo apt-get install -y -qq binutils
+#  - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty main'
+#  - sudo add-apt-repository -y 'deb http://archive.ubuntu.com/ubuntu trusty-security main'
+#  - sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0x3B4FE6ACC0B21F32
+#  - sudo apt-get update -qq
+#  - sudo apt-get install -y -qq binutils
 #  - virtualenv ${TRAVIS_BUILD_DIR}/.pyenv
 #  - source ${TRAVIS_BUILD_DIR}/.pyenv/activate
 #  - sudo pip install cpp-coveralls
@@ -159,11 +162,22 @@ before_install:
   - if [ ${CC} == "clang" ]; then
     export CC=/usr/bin/clang-3.7 CXX=/usr/bin/clang++-3.7;
     fi
-  - sudo service mysql stop
-  - sudo service postgresql stop
-  - sudo service ssh stop
-  - sudo apt-get remove policykit-1 consolekit
+# saving memory
+#  - sudo service mysql stop
+#  - sudo service postgresql stop
+#  - sudo service ssh stop
+#  - sudo apt-get remove policykit-1 consolekit
 
+
+before_script:
+  - if [ ! -d "$HOME/binutils/bin" ]; then
+       wget http://ftp.gnu.org/gnu/binutils/binutils-2.25.tar.bz2 -O - | tar -jxf -
+       cd binutils-2.25
+       ./configure --prefix=${HOME}/binutils
+       make -j 4
+       make install
+    fi
+  - export PATH=$PATH:${HOME}/binutils/bin
 
 script:
   - free -m
@@ -188,10 +202,12 @@ script:
 # TMP disable:  -DWITH_EMBEDDED_SERVER=ON
   - COMPILE_RESULT=0
 # -j4 was too much - resulted in internal compile error due to OOM
-  - make -j 1 || COMPILE_RESULT=$?; expr ${COMPILE_RESULT} == 0
-  - if [ ${COMPILE_RESULT} -gt 0 ] && [ ${CC} != "clang" ]; then
-      cat /usr/share/doc/gcc-5/README.Bugs;
-    fi
+  - make -j 4
+# TMP disable
+#  - make -j 1 || COMPILE_RESULT=$?; expr ${COMPILE_RESULT} == 0
+#  - if [ ${COMPILE_RESULT} -gt 0 ] && [ ${CC} != "clang" ]; then
+#      cat /usr/share/doc/gcc-5/README.Bugs;
+#    fi
   # ulimit -c unlimited might become default: https://github.com/travis-ci/travis-ci/issues/3754 - some nodes it seems are 0 others aren't
   - cd "${BDIR}"/mysql-test
   - export MTR_BINDIR=${BDIR}
