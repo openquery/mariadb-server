@@ -152,7 +152,7 @@ script:
   - if [ "${C}" == "gcc" ]; then
        CMAKE_EXTRA=-DENABLE_GCOV=ON ;
     else
-       CMAKE_EXTRA="-DWITHOUT_MROONGA_STORAGE_ENGINE=ON -DWITHOUT_OQGRAPH" ;
+       CMAKE_EXTRA="-DWITHOUT_MROONGA_STORAGE_ENGINE=ON -DWITHOUT_OQGRAPH=ON" ;
     fi
   - BDIR=${TRAVIS_BUILD_DIR}
   - mkdir -p "${BDIR}"; cd "${BDIR}"
