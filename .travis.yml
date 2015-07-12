@@ -159,7 +159,10 @@ script:
                -DWITH_ARCHIVE_STORAGE_ENGINE=ON -DWITH_BLACKHOLE_STORAGE_ENGINE=ON
                -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
                -DWITH_PARTITION_STORAGE_ENGINE=ON ${CMAKE_EXTRA}
-               -DWITH_EMBEDDED_SERVER=ON
+# disable:     -DWITH_EMBEDDED_SERVER=ON
+# [ 65%] Building C object storage/xtradb/CMakeFiles/xtradb_embedded.dir/dict/dict0dict.c.o
+# /usr/bin/ld.bfd.real: duplicate version tag `libmysqlclient_18'
+# /usr/bin/ld.bfd.real: duplicate version tag `libmysqlclient_16'
   - COMPILE_RESULT=0
   - make -j 4
   - cd "${BDIR}"/mysql-test
