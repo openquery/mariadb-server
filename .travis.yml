@@ -71,8 +71,9 @@ addons:
       - mariadb-10.0
       - llvm-toolchain-precise
     packages:
+# ensure these match GCC_VERSION
       - gcc-4.9
-      - gcc-4.9
+      - g++-4.9
       - clang-3.7
 #      - binutils - distro not new enough
       - libjemalloc-dev
