@@ -151,8 +151,12 @@ script:
 # coveralls coverage can work with gcc and clang. We only choose one to reduce load and because it probably doesn't make much difference which on.
 # -DWITHOUT_MROONGA_STORAGE_ENGINE there because too many clang warnings
 # -DWITHOUT_OQGRAPH (needs to be added) because  MDEV-8051 - clang has OQgraph error - 10.0+ only?
+  - if [ "${C}" == "gcc" ]; then
+       CMAKE_EXTRA=-DENABLE_GCOV=ON ;
+    else
+       CMAKE_EXTRA=-DWITHOUT_MROONGA_STORAGE_ENGINE=ON -DWITHOUT_OQGRAPH ;
+    fi
   - BDIR=${TRAVIS_BUILD_DIR}
-  - if [ "${C}" == "gcc" ]; then CMAKE_EXTRA=-DENABLE_GCOV=ON ; else CMAKE_EXTRA=-DWITHOUT_MROONGA_STORAGE_ENGINE=ON -DWITHOUT_OQGRAPH ; fi
   - mkdir -p "${BDIR}"; cd "${BDIR}"
   - cmake "${TRAVIS_BUILD_DIR}"   -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} -DCMAKE_BUILD_TYPE=${BUILD_TYPE:-Debug} -DSYSTEM_TYPE="debian-linux-gnu"
                -DWITH_SSL=system -DWITH_ZLIB=system
@@ -164,7 +168,7 @@ script:
 # /usr/bin/ld.bfd.real: duplicate version tag `libmysqlclient_18'
 # /usr/bin/ld.bfd.real: duplicate version tag `libmysqlclient_16'
   - COMPILE_RESULT=0
-  - make -j 4
+  - make -j 4 || COMPILE_RESULT=$?; expr ${COMPILE_RESULT} == 0
   - cd "${BDIR}"/mysql-test
   - export MTR_BINDIR=${BDIR}
   - MTROPTS="--report-times --parallel=6 --force --fast --timer --retry-failure=2 --suite-timeout=60 --testcase-timeout=30 --big-test"
@@ -175,17 +179,17 @@ script:
   - export MYSQL_BUILD_CC=${CC}
   - export MYSQL_BUILD_CXX=${CXX}
 # shortest running test case we do a build of packages
+# if build time exceeds 10mins "travis_wait" may need to be prepended to debian build command as debian build is intentionally outputless
   - PKG_RESULT=1
   - if [[ "${TEST}" =~ percona ]] && [[ "${C}" -eq "gcc" ]] && [[ ${TEST_RESULT} -eq 0 ]]; then
       env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
       PKG_RESULT=$?;
       find . -name \*.deb -ls;
+      cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6;
+      make -j 4 package;
+      find . -name \*.rpm -ls;
+      find . -name rpmbuild-client.err -exec cat {} \;  ;
     fi
-## travis_wait is because debian build is intentionally outputless
-  - cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6;
-  - make -j 4 package;
-  - find . -name \*.rpm -ls;
-  - find . -name rpmbuild-client.err -exec cat {} \;  ;
 
 # .travis.known_hosts
 # ssh -o VerifyHostKeyDNS=yes -o UserKnownHostsFile=.travis.known_hosts -i .travis.id_rsa ${UPLOADSERVER}
