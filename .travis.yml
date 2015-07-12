@@ -36,7 +36,7 @@ env:
     - COVERALLS_PARALLEL=true
 # GCC_VERSION - options 4.7, 4.8, 4.9 and 5. packages: needs to include gcc-${GCC_VERSION}, g++-${GCC_VERSION}
 # however this can't be scripted
-    - GCC_VERSION=4.9
+    - GCC_VERSION=4.8
 
 addons:
 #  coverity_scan:
@@ -72,8 +72,8 @@ addons:
       - llvm-toolchain-precise
     packages:
 # ensure these match GCC_VERSION
-      - gcc-4.9
-      - g++-4.9
+      - gcc-4.8
+      - g++-4.8
       - clang-3.7
 #      - binutils - distro not new enough
       - libjemalloc-dev
@@ -166,7 +166,7 @@ script:
                -DWITH_FEDERATEDX_STORAGE_ENGINE=ON  -DWITH_PLUGIN_FEEDBACK=ON -DWITH_INNOBASE_STORAGE_ENGINE=ON
                -DWITH_PARTITION_STORAGE_ENGINE=ON ${CMAKE_EXTRA}
                -DWITH_EMBEDDED_SERVER=ON
-# Might be gcc-5.1 error
+# WITH_EMBEDDED_SERVER fails on gcc 5.1 and 4.9
 # [ 65%] Building C object storage/xtradb/CMakeFiles/xtradb_embedded.dir/dict/dict0dict.c.o
 # /usr/bin/ld.bfd.real: duplicate version tag `libmysqlclient_18'
 # /usr/bin/ld.bfd.real: duplicate version tag `libmysqlclient_16'
