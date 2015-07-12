@@ -19,12 +19,10 @@ cache:
 # so here we group the tests such that this happens.
 env:
   matrix:
-    - TEST=main-,archive-,binlog-
-    - TEST=csv-,federated-,funcs_1-,funcs_2-,handler-,heap-,maria-,percona-,perfschema-,plugins-
-# 10.0+ multi_source-,roles-  ^^^
-    - TEST=innodb-,innodb_zip-
-# 10.0+ innodb_fts- ^^
-    - TEST=optimizer_unfixed_bugs-,parts-,sys_vars-,unit-,vcol-
+    - TEST=main-,archive-,binlog-,csv-,federated-,funcs_1-,funcs_2-,handler-,heap-,maria-,percona-,perfschema-,plugins-
+# For 10.0+ add multi_source-,roles- to above
+    - TEST=optimizer_unfixed_bugs-,parts-,sys_vars-,unit-,vcol-,innodb-,innodb_zip-
+# For 10.0+ add innodb_fts- to above
     - TEST=rpl-
   global:
 #   - ENV vars to be kept private i.e. set in travis settings: https://travis-ci.org/MariaDB/server/settings/env_vars
@@ -125,7 +123,7 @@ before_install:
       export CC=/usr/bin/clang-3.7 CXX=/usr/bin/clang++-3.7;
       C=clang;
     else
-      export CC=/usr/bin/gcc-5 CXX=/usr/bin/g++-5;
+      #export CC=/usr/bin/gcc-5 CXX=/usr/bin/g++-5;
       C=gcc;
     fi
   - GCOV=/usr/bin/gcov-5
