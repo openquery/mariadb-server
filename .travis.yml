@@ -7,8 +7,8 @@ sudo: false
 language: cpp
 compiler:
   - gcc
-# MDEV-7398 for clang problems on 10.0 branch
-  - clang
+# Excessive warnings causing over 4Mb of logs before it completed a build
+#  - clang
 cache:
   apt:
   ccache:
