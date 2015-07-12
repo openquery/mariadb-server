@@ -187,15 +187,18 @@ script:
 # autobake isn't building however its not breaking the travis build.
   - PKG_RESULT=1
   - if [[ "${TEST}" =~ percona ]] && [[ "${C}" -eq "gcc" ]] && [[ ${TEST_RESULT} -eq 0 ]]; then
+      rm CMakeCache.txt;
       env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
       PKG_RESULT=$?;
       find . -name \*.deb -ls;
-      rm CMakeCache.txt;
-      cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6;
-      make -j 4 package;
-      find . -name \*.rpm -ls;
-      find . -name rpmbuild-client.err -exec cat {} \;  ;
     fi
+# TOO much 'warning: File listed twice:' output - exceeds travis limit of 4Mb
+#      rm CMakeCache.txt;
+#      cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6;
+#      make -j 4 package;
+#      find . -name \*.rpm -ls;
+#      find . -name rpmbuild-client.err -exec cat {} \;  ;
+#    fi
 
 # ssh upload
 # ssh-keygen -f .travis.id_rsa
