@@ -119,11 +119,11 @@ before_install:
 #  - sudo apt-get install -y -qq binutils
 #
   - gem install coveralls-lcov
+# TMP disable export CC=/usr/bin/gcc-5 CXX=/usr/bin/g++-5;
   - if [ ${CC} == "clang" ]; then
       export CC=/usr/bin/clang-3.7 CXX=/usr/bin/clang++-3.7;
       C=clang;
     else
-      #export CC=/usr/bin/gcc-5 CXX=/usr/bin/g++-5;
       C=gcc;
     fi
   - GCOV=/usr/bin/gcov-5
