@@ -188,11 +188,11 @@ script:
   - PKG_RESULT=1
   - if [[ "${TEST}" =~ percona ]] && [[ "${C}" -eq "gcc" ]] && [[ ${TEST_RESULT} -eq 0 ]]; then
       rm CMakeCache.txt;
-      env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
+      travis_wait env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
       PKG_RESULT=$?;
       find . -name \*.deb -ls;
     fi
-# TOO much 'warning: File listed twice:' output - exceeds travis limit of 4Mb
+# TODO much 'warning: File listed twice:' output - exceeds travis limit of 4Mb
 #      rm CMakeCache.txt;
 #      cmake .  -DBUILD_CONFIG=mysql_release -DRPM=centos6;
 #      make -j 4 package;
