@@ -9,6 +9,11 @@ compiler:
   - gcc
 # MDEV-7398 for clang problems on 10.1 branch
   - clang
+
+os:
+  - linux
+  - osx
+
 cache:
   apt:
   ccache:
