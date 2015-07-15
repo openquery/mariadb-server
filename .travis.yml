@@ -2,9 +2,10 @@
 # travis-ci.org definition
 
 # non-container builds don't have enough RAM to reliably compile
-sudo: false
+sudo: required
 
 language: cpp
+
 compiler:
   - gcc
 # MDEV-7398 for clang problems on 10.1 branch
