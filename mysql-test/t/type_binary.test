@@ -126,3 +126,31 @@ DROP TABLE t1;
 --echo # End of 10.0 tests
 --echo #
 
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-7988 Increase CHAR and BINARY types to 65536 bytes
+--echo #
+
+CREATE TABLE t1 (a BINARY(256), b CHAR(256));
+INSERT INTO t1 VALUES (0x323412,'1äÖüß@µ*$');
+INSERT INTO t1 VALUES (REPEAT(0x32,257), REPEAT('1äÖüß@µ*', 256/8+1));
+SELECT HEX(a),HEX(b) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a BINARY(8000), b CHAR(8000));
+INSERT INTO t1 VALUES (0x323412,'1äÖüß@µ*$');
+INSERT INTO t1 VALUES (REPEAT(0x32,8001), REPEAT('1äÖüß@µ*', 8000/8+1));
+SELECT HEX(a),HEX(b) FROM t1;
+DROP TABLE t1;
+
+#CREATE TABLE t1 (a BINARY(65536), b CHAR(65536));
+#INSERT INTO t1 VALUES (0x323412,'1äÖüß@µ*$');
+#INSERT INTO t1 VALUES (REPEAT(0x32,65537), REPEAT('1äÖüß@µ*', 65536/8+1));
+#SELECT HEX(a),HEX(b) FROM t1;
+#DROP TABLE t1;
+
+--echo # End of 10.1 tests

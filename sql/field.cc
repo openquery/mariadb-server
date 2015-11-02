@@ -9930,13 +9930,12 @@ bool Create_field::check(THD *thd)
       my_decimal_get_binary_size(length, decimals);
     break;
   case MYSQL_TYPE_VARCHAR:
+  case MYSQL_TYPE_STRING:
     /*
       Long VARCHAR's are automaticly converted to blobs in mysql_prepare_table
       if they don't have a default value
     */
     max_field_charlength= MAX_FIELD_VARCHARLENGTH;
-    break;
-  case MYSQL_TYPE_STRING:
     break;
   case MYSQL_TYPE_BLOB:
   case MYSQL_TYPE_TINY_BLOB:
