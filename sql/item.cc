@@ -5547,8 +5547,7 @@ Field *Item::make_string_field(TABLE *table)
       Field_blob(max_length, maybe_null, name,
                  collation.collation, TRUE);
   /* Item_type_holder holds the exact type, do not change it */
-  else if (max_length > 0 &&
-      (type() != Item::TYPE_HOLDER || field_type() != MYSQL_TYPE_STRING))
+  else if (max_length > 0 && type() != Item::TYPE_HOLDER)
     field= new (mem_root)
       Field_varstring(max_length, maybe_null, name, table->s,
                       collation.collation);

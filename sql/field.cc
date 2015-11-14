@@ -10139,8 +10139,8 @@ uint32 calc_pack_length(enum_field_types type,uint32 length)
 {
   switch (type) {
   case MYSQL_TYPE_VAR_STRING:
-  case MYSQL_TYPE_STRING:
   case MYSQL_TYPE_DECIMAL:     return (length);
+  case MYSQL_TYPE_STRING:
   case MYSQL_TYPE_VARCHAR:     return (length + (length < 256 ? 1: 2));
   case MYSQL_TYPE_YEAR:
   case MYSQL_TYPE_TINY	: return 1;
